@@ -6,7 +6,7 @@ swapsafe sends the same probe requests to your ingress-nginx endpoint and to you
 endpoint, normalizes both responses, and reports every meaningful difference together with the
 ingress-nginx annotation that caused it.
 
-> **Status:** pre-alpha. Nothing works yet; see [docs/PLAN.md](docs/PLAN.md) for the roadmap.
+> **Status:** pre-alpha. Nothing works yet.
 
 ## Why
 
@@ -33,7 +33,6 @@ GET, HEAD and OPTIONS.
 
 ## Documentation
 
-- [Plan](docs/PLAN.md) — vision, architecture, roadmap
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 

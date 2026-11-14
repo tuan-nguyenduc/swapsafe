@@ -5,8 +5,9 @@ Thanks for helping out. swapsafe is early — the fastest way to contribute is t
 
 ## Before you start
 
-Read [`docs/PLAN.md`](docs/PLAN.md). It is the single source of truth for scope, architecture and
-roadmap; a PR that contradicts it needs an ADR in `docs/adr/` (MADR format) explaining why.
+Open an issue first for anything beyond a small fix. swapsafe has a deliberately narrow scope —
+it verifies behaviour, it does not translate configuration, change traffic, or load test — and
+the maintainers will tell you quickly whether an idea fits.
 
 ## Development environment
 

@@ -23,7 +23,7 @@ body:
     id: scope
     attributes:
       label: Scope check
-      description: swapsafe does not translate configuration, change traffic, or load test. See docs/PLAN.md section 2.
+      description: swapsafe does not translate configuration, change traffic, or load test.
       options:
-        - label: I have read the non-goals in docs/PLAN.md and this request is in scope.
+        - label: This request is about verifying behaviour, not about any of the above.
           required: true

@@ -3,3 +3,6 @@
 *.test
 coverage.out
 results.json
+
+# Planning notes are kept locally, not published.
+/docs/
