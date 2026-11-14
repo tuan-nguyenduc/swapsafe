@@ -30,3 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `internal/generator`: collects the test cases every applicable rule wants for a route,
   drops duplicate IDs, and reports each `nginx.ingress.kubernetes.io/` annotation no rule
   verifies as an `info` finding rather than passing over it in silence.
+- `internal/prober`: sends each test case to both endpoints in parallel, dialling the endpoint
+  address while presenting the route's Host header and SNI, so a Gateway can be probed before
+  DNS moves. Redirects are not followed, the rate is capped per endpoint, unsafe methods are
+  refused without an explicit flag, and response bodies are hashed but not kept.

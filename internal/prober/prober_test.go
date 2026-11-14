@@ -1,0 +1,349 @@
+package prober
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
+)
+
+// testCase builds a GET for shop.example.com, the host the prober must put in
+// the Host header even though it dials the test server's address.
+func testCase(id, path string) api.TestCase {
+	return api.TestCase{
+		ID:      id,
+		RouteID: "shop/web/shop.example.com/",
+		RuleID:  "baseline",
+		Request: api.RequestSpec{
+			Method: http.MethodGet,
+			Scheme: "http",
+			Host:   "shop.example.com",
+			Path:   path,
+		},
+	}
+}
+
+// fastOptions keeps the rate limiter out of the way of the tests.
+func fastOptions(baseline, candidate string) Options {
+	return Options{
+		Baseline:      baseline,
+		Candidate:     candidate,
+		RatePerSecond: 1000,
+		Timeout:       5 * time.Second,
+	}
+}
+
+func newProber(t *testing.T, opts Options) *Prober {
+	t.Helper()
+	p, err := New(opts)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+func TestRunProbesBothEndpoints(t *testing.T) {
+	t.Parallel()
+
+	var baselineHost, candidateHost atomic.Value
+	baseline := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		baselineHost.Store(r.Host)
+		w.Header().Set("Location", "https://shop.example.com/")
+		w.WriteHeader(http.StatusMovedPermanently)
+	}))
+	defer baseline.Close()
+
+	candidate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		candidateHost.Store(r.Host)
+		_, _ = w.Write([]byte("hello"))
+	}))
+	defer candidate.Close()
+
+	p := newProber(t, fastOptions(baseline.URL, candidate.URL))
+
+	got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	obs := got["a"]
+	if len(obs) != 2 {
+		t.Fatalf("got %d observations, want 2: %+v", len(obs), obs)
+	}
+	if obs[0].Endpoint != api.EndpointBaseline || obs[1].Endpoint != api.EndpointCandidate {
+		t.Errorf("observations are not in a stable order: %q, %q", obs[0].Endpoint, obs[1].Endpoint)
+	}
+	if obs[0].Status != http.StatusMovedPermanently {
+		t.Errorf("baseline status = %d, want 301 (the redirect must not be followed)", obs[0].Status)
+	}
+	if obs[0].Headers.Get("Location") == "" {
+		t.Error("baseline Location header was lost")
+	}
+	if obs[1].Status != http.StatusOK {
+		t.Errorf("candidate status = %d, want 200", obs[1].Status)
+	}
+	if obs[0].BodySHA256 == obs[1].BodySHA256 {
+		t.Error("different bodies hashed the same")
+	}
+	if obs[0].Err != "" || obs[1].Err != "" {
+		t.Errorf("unexpected errors: %q, %q", obs[0].Err, obs[1].Err)
+	}
+
+	// The whole point: dial the endpoint, but present the route's host.
+	if h, _ := baselineHost.Load().(string); h != "shop.example.com" {
+		t.Errorf("baseline saw Host %q, want shop.example.com", h)
+	}
+	if h, _ := candidateHost.Load().(string); h != "shop.example.com" {
+		t.Errorf("candidate saw Host %q, want shop.example.com", h)
+	}
+}
+
+func TestBodiesAreNotKeptByDefault(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("secret-ish body"))
+	}))
+	defer srv.Close()
+
+	p := newProber(t, fastOptions(srv.URL, srv.URL))
+	got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	for _, obs := range got["a"] {
+		if len(obs.BodySample) != 0 {
+			t.Errorf("body kept without IncludeBodies: %q", obs.BodySample)
+		}
+		if obs.BodySHA256 == "" {
+			t.Error("body hash is missing; the differ needs it")
+		}
+	}
+}
+
+func TestIncludeBodiesIsCapped(t *testing.T) {
+	t.Parallel()
+
+	big := strings.Repeat("x", MaxBodySample*3)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(big))
+	}))
+	defer srv.Close()
+
+	opts := fastOptions(srv.URL, srv.URL)
+	opts.IncludeBodies = true
+	p := newProber(t, opts)
+
+	got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	obs := got["a"][0]
+	if len(obs.BodySample) != MaxBodySample {
+		t.Errorf("sample is %d bytes, want %d", len(obs.BodySample), MaxBodySample)
+	}
+	// The hash must still cover the whole body, not just the sample.
+	if obs.BodySHA256 == "" {
+		t.Fatal("body hash is missing")
+	}
+	short := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(big[:MaxBodySample]))
+	}))
+	defer short.Close()
+
+	p2 := newProber(t, func() Options { o := fastOptions(short.URL, short.URL); o.IncludeBodies = true; return o }())
+	got2, err := p2.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got2["a"][0].BodySHA256 == obs.BodySHA256 {
+		t.Error("truncated body hashed the same as the full one")
+	}
+}
+
+func TestUnsafeMethodsAreRefused(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+
+	del := testCase("a", "/")
+	del.Request.Method = http.MethodDelete
+
+	p := newProber(t, fastOptions(srv.URL, srv.URL))
+	_, err := p.Run(t.Context(), []api.TestCase{del})
+	if err == nil {
+		t.Fatal("DELETE was sent without --allow-unsafe-methods")
+	}
+	if !strings.Contains(err.Error(), "allow-unsafe-methods") {
+		t.Errorf("error does not say how to proceed: %v", err)
+	}
+
+	opts := fastOptions(srv.URL, srv.URL)
+	opts.AllowUnsafeMethods = true
+	allowed := newProber(t, opts)
+	if _, err := allowed.Run(t.Context(), []api.TestCase{del}); err != nil {
+		t.Errorf("DELETE refused even with AllowUnsafeMethods: %v", err)
+	}
+}
+
+func TestSafeMethodsPass(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+	p := newProber(t, fastOptions(srv.URL, srv.URL))
+
+	for _, method := range safeMethods {
+		tc := testCase("a", "/")
+		tc.Request.Method = method
+		if _, err := p.Run(t.Context(), []api.TestCase{tc}); err != nil {
+			t.Errorf("%s was refused: %v", method, err)
+		}
+	}
+}
+
+func TestNetworkErrorIsRecordedNotFatal(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+
+	// Nothing listens on the candidate port.
+	dead := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	deadURL := dead.URL
+	dead.Close()
+
+	p := newProber(t, fastOptions(srv.URL, deadURL))
+	got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+	if err != nil {
+		t.Fatalf("Run returned an error for an unreachable endpoint: %v", err)
+	}
+	if got["a"][0].Err != "" {
+		t.Errorf("baseline reported an error: %q", got["a"][0].Err)
+	}
+	if got["a"][1].Err == "" {
+		t.Error("an unreachable candidate must be recorded as an error on the observation")
+	}
+}
+
+func TestRateLimitIsPerEndpoint(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		hits.Add(1)
+	}))
+	defer srv.Close()
+
+	opts := fastOptions(srv.URL, srv.URL)
+	opts.RatePerSecond = 20 // 50ms apart
+	p := newProber(t, opts)
+
+	cases := []api.TestCase{testCase("a", "/a"), testCase("b", "/b"), testCase("c", "/c")}
+
+	start := time.Now()
+	if _, err := p.Run(t.Context(), cases); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	elapsed := time.Since(start)
+
+	// Three requests per endpoint at 20/s: the first is immediate, so at
+	// least two intervals must have passed.
+	if want := 2 * 50 * time.Millisecond; elapsed < want {
+		t.Errorf("3 requests at 20/s took %v, want at least %v", elapsed, want)
+	}
+	if got := hits.Load(); got != 6 {
+		t.Errorf("server saw %d requests, want 6 (3 cases x 2 endpoints)", got)
+	}
+}
+
+func TestRunRespectsCancellation(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+
+	p := newProber(t, fastOptions(srv.URL, srv.URL))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if _, err := p.Run(ctx, []api.TestCase{testCase("a", "/")}); err == nil {
+		t.Fatal("Run ignored a cancelled context")
+	}
+}
+
+func TestNewRejectsBadEndpoints(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		baseline, candidate string
+	}{
+		{name: "empty baseline", candidate: "http://127.0.0.1:1"},
+		{name: "empty candidate", baseline: "http://127.0.0.1:1"},
+		{name: "no host", baseline: "http://127.0.0.1:1", candidate: "not-a-url"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := New(Options{Baseline: tt.baseline, Candidate: tt.candidate}); err == nil {
+				t.Error("New accepted an unusable endpoint")
+			}
+		})
+	}
+}
+
+func TestNewAppliesDefaults(t *testing.T) {
+	t.Parallel()
+
+	p := newProber(t, Options{Baseline: "http://a", Candidate: "http://b"})
+	if p.opts.Concurrency != DefaultConcurrency ||
+		p.opts.RatePerSecond != DefaultRatePerSecond ||
+		p.opts.Timeout != DefaultTimeout {
+		t.Errorf("defaults not applied: %+v", p.opts)
+	}
+	if p.opts.InsecureSkipVerify || p.opts.AllowUnsafeMethods || p.opts.IncludeBodies {
+		t.Error("a safety flag defaults to on")
+	}
+}
+
+func TestDialAddrKeepsSchemePortUnlessPinned(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		endpoint endpoint
+		addr     string
+		want     string
+	}{
+		{
+			name:     "scheme port is kept",
+			endpoint: endpoint{host: "203.0.113.10"},
+			addr:     "shop.example.com:443",
+			want:     "203.0.113.10:443",
+		},
+		{
+			name:     "endpoint port wins",
+			endpoint: endpoint{host: "203.0.113.10", port: "8080"},
+			addr:     "shop.example.com:80",
+			want:     "203.0.113.10:8080",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.endpoint.dialAddr(tt.addr); got != tt.want {
+				t.Errorf("dialAddr(%q) = %q, want %q", tt.addr, got, tt.want)
+			}
+		})
+	}
+}
