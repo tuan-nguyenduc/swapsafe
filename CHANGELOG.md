@@ -11,3 +11,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repository skeleton: Go module, directory layout, Apache-2.0 license, README, `CLAUDE.md`.
 - `Makefile` with `build`, `test`, `lint`, `fmt`, `e2e`, `golden`, `snapshot` and a self-documenting `help`.
 - `.golangci.yml` enforcing the linter set and the package dependency rules from PLAN section 4.
+- CI workflow (`ci.yml`): lint, `test -race` and build on Linux and macOS, plus `govulncheck`
+  and a `zizmor` workflow audit. All actions pinned to full commit SHAs; `permissions: contents: read`.

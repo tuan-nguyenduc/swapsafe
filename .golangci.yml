@@ -18,21 +18,21 @@ linters:
         model:
           files: ["**/internal/model/**"]
           deny:
-            - pkg: github.com/tuanduke/swapsafe/internal
+            - pkg: github.com/tuan-nguyenduc/swapsafe/internal
               desc: internal/model must not import other internal packages
         # PLAN section 4: generator and differ only see model and pkg/rule.
         pipeline:
           files: ["**/internal/generator/**", "**/internal/differ/**"]
           allow:
             - $gostd
-            - github.com/tuanduke/swapsafe/internal/model
-            - github.com/tuanduke/swapsafe/pkg
+            - github.com/tuan-nguyenduc/swapsafe/internal/model
+            - github.com/tuan-nguyenduc/swapsafe/pkg
         # PLAN section 4: rules stay extractable into their own module.
         rules:
           files: ["**/rules/**"]
           allow:
             - $gostd
-            - github.com/tuanduke/swapsafe/pkg
+            - github.com/tuan-nguyenduc/swapsafe/pkg
   exclusions:
     rules:
       - path: _test\.go$

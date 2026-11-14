@@ -1,4 +1,4 @@
-module github.com/tuanduke/swapsafe
+module github.com/tuan-nguyenduc/swapsafe
 
 go 1.26
 
