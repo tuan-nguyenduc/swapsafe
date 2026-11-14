@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -9,8 +10,18 @@ import (
 )
 
 func main() {
-	if err := cli.NewRootCommand().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "swapsafe:", err)
-		os.Exit(1)
+	err := cli.NewRootCommand().Execute()
+	if err == nil {
+		return
 	}
+
+	fmt.Fprintln(os.Stderr, "swapsafe:", err)
+
+	// A run that finished and found differences exits 2, so CI can tell it
+	// apart from swapsafe failing to run at all.
+	var coded cli.Coder
+	if errors.As(err, &coded) {
+		os.Exit(coded.Code())
+	}
+	os.Exit(cli.ExitError)
 }

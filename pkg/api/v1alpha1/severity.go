@@ -38,5 +38,9 @@ func (s Severity) AtLeast(threshold Severity) bool {
 	return rank[s] >= rank[threshold] && rank[s] > 0
 }
 
+// Rank orders severities for display and sorting: higher is more severe,
+// and anything unknown ranks below info.
+func (s Severity) Rank() int { return rank[s] }
+
 // String implements fmt.Stringer.
 func (s Severity) String() string { return string(s) }

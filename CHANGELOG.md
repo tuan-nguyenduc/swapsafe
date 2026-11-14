@@ -42,3 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   status class is `critical`, a redirect target or a header only one side sends is `major`,
   a differing value inside the same status class is `minor`.
 - `internal/attribution`: names the annotation behind each finding and fills in the rule's hint.
+- `internal/report`: `table` and `json` output. The table is sorted most-severe-first and names
+  the request behind each row; hints are printed once however many findings share them.
+- `swapsafe scan`: lists the routes, where each one is meant to land, and which rules would
+  probe it. Sends no requests.
+- `swapsafe run`: the full pipeline, with `--baseline`, `--candidate`, `--ingress-file`,
+  `--httproute-file`, `--output`, `--fail-on`, `--concurrency`, `--rate`, `--timeout`,
+  `--insecure-skip-verify`, `--allow-unsafe-methods` and `--include-bodies`.
+  Exit code 0 when nothing reaches `--fail-on` (default `critical`), 1 on failure, 2 on findings.
