@@ -25,6 +25,9 @@ metadata:
   namespace: shop
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # No rule covers this one yet (it is on the v0.3 list), so it exercises
+    # the "not verified" path that must never be silent.
+    nginx.ingress.kubernetes.io/limit-rps: "5"
 spec:
   rules:
     - host: shop.example.com

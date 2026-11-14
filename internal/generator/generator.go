@@ -27,28 +27,57 @@ type Result struct {
 	Findings []api.Finding
 }
 
-// Generate collects the test cases for every route, dropping duplicate IDs.
+// Generate collects the test cases for every route. Two rules often want the
+// same request — the baseline probes the route path, and so does
+// ssl-redirect — so a request is sent once however many rules asked for it.
 func Generate(routes []api.RouteSpec) Result {
 	var res Result
-	seen := make(map[string]bool)
+	seenID := make(map[string]bool)
 
+	// Request signature to its index in res.TestCases. Scoped per route: the
+	// same request on two routes is still two findings to attribute.
 	for _, route := range routes {
+		seen := make(map[string]int)
+
 		for _, r := range rule.For(route) {
 			for _, tc := range r.Generate(route) {
-				// ponytail: deduplicates identical test case IDs only. Two
-				// Ingresses serving the same host and path still produce two
-				// identical requests, because each belongs to its own route.
-				// Deduplicate by request if that ever shows up as real load.
-				if seen[tc.ID] {
+				if seenID[tc.ID] {
 					continue
 				}
-				seen[tc.ID] = true
+				sig := signature(tc.Request)
+				if i, dup := seen[sig]; dup {
+					// A rule that knows why it is asking beats the generic
+					// probe, so its hint is the one the user reads.
+					if res.TestCases[i].RuleID == rule.BaselineID && tc.RuleID != rule.BaselineID {
+						res.TestCases[i] = tc
+					}
+					continue
+				}
+				seenID[tc.ID] = true
+				seen[sig] = len(res.TestCases)
 				res.TestCases = append(res.TestCases, tc)
+			}
+			if reporter, ok := r.(rule.Reporter); ok {
+				res.Findings = append(res.Findings, reporter.Report(route)...)
 			}
 		}
 		res.Findings = append(res.Findings, unverifiedAnnotations(route)...)
 	}
 	return res
+}
+
+// signature identifies a request, so the same one is never sent twice.
+//
+// ponytail: scoped to one route. Two Ingresses serving the same host and path
+// still produce two identical requests, because each belongs to its own
+// route and its own findings. Widen it if that ever shows up as real load.
+func signature(r api.RequestSpec) string {
+	var sb strings.Builder
+	sb.WriteString(r.Method + "\x00" + r.Scheme + "\x00" + r.Path + "\x00" + r.Query)
+	for _, name := range slices.Sorted(maps.Keys(r.Headers)) {
+		sb.WriteString("\x00" + name + ":" + strings.Join(r.Headers[name], ","))
+	}
+	return sb.String()
 }
 
 // unverifiedAnnotations reports every ingress-nginx annotation on the route

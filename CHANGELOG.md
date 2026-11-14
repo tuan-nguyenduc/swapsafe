@@ -50,3 +50,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--httproute-file`, `--output`, `--fail-on`, `--concurrency`, `--rate`, `--timeout`,
   `--insecure-skip-verify`, `--allow-unsafe-methods` and `--include-bodies`.
   Exit code 0 when nothing reaches `--fail-on` (default `critical`), 1 on failure, 2 on findings.
+- `rules/ingressnginx`: the ten v0.1 rules — `ssl-redirect`, `force-ssl-redirect`,
+  `rewrite-target`, `use-regex`, `app-root`, `permanent-redirect`, `temporal-redirect`,
+  `enable-cors` (with the `cors-*` family), `proxy-body-size` and `backend-protocol`.
+- `rule.Reporter`: an optional interface for rules whose annotation cannot be verified by
+  probing, so they report what they know instead of staying silent.
+- `swapsafe rules`: lists every rule and the annotations it verifies.
+- The generator now sends each distinct request once per route however many rules ask for it,
+  and gives the request to the rule that knows why it is asking rather than to the baseline.

@@ -168,3 +168,58 @@ func TestVerifiedAnnotationIsNotReported(t *testing.T) {
 		t.Fatalf("got %d findings, want 1 while no rule covers %s", len(got.Findings), covered)
 	}
 }
+
+// annotationRule stands in for a real annotation rule: it asks for exactly
+// the request the baseline already probes, which is what ssl-redirect,
+// app-root and the redirect rules all do.
+const dupAnnotation = NginxPrefix + "generator-dedup-test"
+
+type annotationRule struct{}
+
+func (annotationRule) ID() string            { return "test.dedup" }
+func (annotationRule) Annotations() []string { return []string{dupAnnotation} }
+
+func (annotationRule) Applies(r api.RouteSpec) bool {
+	_, ok := r.Annotations[dupAnnotation]
+	return ok
+}
+
+func (a annotationRule) Generate(r api.RouteSpec) []api.TestCase {
+	return []api.TestCase{{
+		ID:      rule.TestCaseID(r.ID, a.ID(), "GET http /"),
+		RouteID: r.ID,
+		RuleID:  a.ID(),
+		Request: api.RequestSpec{Method: "GET", Scheme: "http", Path: "/"},
+		Expect:  []api.Assertion{{Aspect: api.AspectStatus}},
+	}}
+}
+
+func (annotationRule) Compare(api.TestCase, api.Observation, api.Observation) []api.Finding {
+	return nil
+}
+func (annotationRule) Hint(api.Finding) string { return "stand-in hint" }
+
+func init() { rule.Register(annotationRule{}) }
+
+// The baseline probes the route path and so does ssl-redirect. Sending it
+// twice doubles the load on a production ingress for nothing.
+func TestGenerateSendsEachRequestOnce(t *testing.T) {
+	t.Parallel()
+
+	got := Generate([]api.RouteSpec{route("shop/web/h/", "/", map[string]string{dupAnnotation: "x"})})
+
+	seen := map[string]string{}
+	for _, tc := range got.TestCases {
+		key := tc.Request.Method + " " + tc.Request.Scheme + " " + tc.Request.Path
+		if prev, dup := seen[key]; dup {
+			t.Errorf("%q generated twice, by %s and %s", key, prev, tc.RuleID)
+		}
+		seen[key] = tc.RuleID
+	}
+
+	// And the annotation rule, not the generic probe, must own the request it
+	// asked for — its hint is the one worth reading.
+	if owner := seen["GET http /"]; owner != "test.dedup" {
+		t.Errorf("GET http / belongs to %q, want test.dedup", owner)
+	}
+}

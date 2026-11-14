@@ -31,6 +31,15 @@ type Rule interface {
 	Hint(f api.Finding) string
 }
 
+// Reporter is implemented by rules whose annotation changes behaviour
+// swapsafe cannot see from outside — a body size limit, a backend protocol.
+// Probing would prove nothing, so these rules say what they know instead of
+// staying silent, which would read as a pass.
+type Reporter interface {
+	Rule
+	Report(route api.RouteSpec) []api.Finding
+}
+
 // The registry is the one global in swapsafe, by design (PLAN section 6.1):
 // rules register themselves from init() so adding a rule is adding a file.
 var (
