@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - cobra command skeleton with the `version` command (version, commit, build date via `-ldflags`)
   and global `--log-level` / `--log-format` flags backed by `log/slog`.
 - Dependabot for `gomod` and `github-actions` (PLAN section 6.3).
+- README: what swapsafe does, quickstart, the safety defaults, and the supported annotations.
 - `pkg/api/v1alpha1`: the core types — `RouteSpec`, `TestCase`, `Observation`, `Finding`,
   `Severity` — carrying the JSON tags that define `results.json`
   (`swapsafe.dev/v1alpha1`), with round-trip and determinism tests.
