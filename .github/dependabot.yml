@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Matches the 14-day rule we apply to pinned actions (PLAN 6.3).
+    # Security updates bypass the cooldown.
+    cooldown:
+      default-days: 14
     commit-message:
       prefix: build
 
@@ -11,5 +15,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Matches the 14-day rule we apply to pinned actions (PLAN 6.3).
+    # Security updates bypass the cooldown.
+    cooldown:
+      default-days: 14
     commit-message:
       prefix: ci
