@@ -34,3 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   address while presenting the route's Host header and SNI, so a Gateway can be probed before
   DNS moves. Redirects are not followed, the rate is capped per endpoint, unsafe methods are
   refused without an explicit flag, and response bodies are hashed but not kept.
+- `internal/normalize`: drops per-request headers (`Date`, `X-Request-Id`, `Server`, `Via`,
+  `X-Envoy-*`, `Traceparent`, `Content-Length`) plus anything in `ignoreHeaders`, masks
+  credential headers, resolves `Location` to an absolute canonical URL, and reduces
+  `Set-Cookie` to its name and behavioural attributes with the value redacted.
