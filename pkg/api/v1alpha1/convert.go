@@ -109,6 +109,7 @@ func FromObservation(o model.Observation) Observation {
 // FromFinding converts an internal finding.
 func FromFinding(f model.Finding) Finding {
 	out := Finding{
+		RouteID:    f.RouteID,
 		TestCaseID: f.TestCaseID,
 		Severity:   f.Severity.String(),
 		Aspect:     f.Aspect,

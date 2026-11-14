@@ -22,3 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Severity` with `--fail-on` ordering.
 - `pkg/api/v1alpha1`: the public JSON schema (`swapsafe.dev/v1alpha1`) for `results.json`,
   with conversions from the internal model and round-trip tests.
+- `internal/collector`: read Ingress and HTTPRoute objects from multi-document YAML manifests and
+  pair them by namespace, host and path. An Ingress route with no matching HTTPRoute becomes a
+  `critical` finding.

@@ -109,6 +109,10 @@ type Cause struct {
 
 // Finding is one meaningful difference between the two endpoints.
 type Finding struct {
+	// RouteID is always set. TestCaseID is empty for findings that belong to a
+	// route rather than to a request — an Ingress route with no matching
+	// HTTPRoute, or an annotation no rule verifies.
+	RouteID     string
 	TestCaseID  string
 	Severity    Severity
 	Aspect      string

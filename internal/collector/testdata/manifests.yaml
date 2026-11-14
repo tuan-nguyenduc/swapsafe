@@ -1,0 +1,103 @@
+# One combined manifest: Ingress and HTTPRoute together, plus kinds swapsafe
+# must ignore. shop/web is fully translated; shop/admin has no HTTPRoute.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+  namespace: shop
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [shop.example.com]
+      secretName: shop-tls
+  rules:
+    - host: shop.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+          - path: /checkout
+            pathType: Exact
+            backend:
+              service:
+                name: checkout
+                port:
+                  number: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: shop
+spec:
+  ports:
+    - port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: admin
+  namespace: shop
+spec:
+  rules:
+    - host: admin.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin
+                port:
+                  number: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: web
+  namespace: shop
+spec:
+  parentRefs:
+    - name: gateway
+  hostnames: [shop.example.com]
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: web
+          port: 80
+    - matches:
+        - path:
+            type: Exact
+            value: /checkout
+      backendRefs:
+        - name: checkout
+          port: 80
+---
+# Right host and path, wrong namespace: must not be paired with shop/admin.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: admin
+  namespace: other
+spec:
+  parentRefs:
+    - name: gateway
+  hostnames: [admin.example.com]
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: admin
+          port: 80

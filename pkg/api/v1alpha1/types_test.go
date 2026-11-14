@@ -78,6 +78,7 @@ func sampleRun() (Metadata, []model.RouteSpec, []model.TestCase, map[string][]mo
 	}
 
 	findings := []model.Finding{{
+		RouteID:    routes[0].ID,
 		TestCaseID: "c0ffee",
 		Severity:   model.SeverityMinor,
 		Aspect:     "status",

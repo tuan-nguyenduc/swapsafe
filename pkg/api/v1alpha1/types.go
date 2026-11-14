@@ -99,7 +99,9 @@ type Cause struct {
 
 // Finding is one meaningful difference between the two endpoints.
 type Finding struct {
-	TestCaseID  string  `json:"testCaseId"`
+	RouteID string `json:"routeId"`
+	// TestCaseID is empty for findings about a route rather than a request.
+	TestCaseID  string  `json:"testCaseId,omitempty"`
 	Severity    string  `json:"severity"`
 	Aspect      string  `json:"aspect"`
 	Baseline    string  `json:"baseline"`
