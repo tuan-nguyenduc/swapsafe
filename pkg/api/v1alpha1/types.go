@@ -25,6 +25,15 @@ const (
 	PathTypeImplementationSpecific = "ImplementationSpecific"
 )
 
+// Finding aspects that are not response differences. Aspects that are come
+// from the rules themselves: "status", "header:location", "body", ...
+const (
+	// AspectRoute: the Ingress route has no counterpart on the Gateway side.
+	AspectRoute = "route"
+	// AspectAnnotation: an annotation no rule verifies.
+	AspectAnnotation = "annotation"
+)
+
 // The two endpoints every test case is sent to.
 const (
 	EndpointBaseline  = "baseline"

@@ -88,3 +88,17 @@ func TestCaseID(routeID, ruleID, variant string) string {
 	sum := sha256.Sum256([]byte(routeID + "\x00" + ruleID + "\x00" + variant))
 	return hex.EncodeToString(sum[:8])
 }
+
+// Verifies reports whether any registered rule covers this annotation key.
+// An annotation nothing covers must still reach the report, as an info
+// finding rather than silence (PLAN section 5.3).
+func Verifies(annotation string) bool {
+	for _, r := range All() {
+		for _, a := range r.Annotations() {
+			if a == annotation {
+				return true
+			}
+		}
+	}
+	return false
+}

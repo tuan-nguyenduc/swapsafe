@@ -11,10 +11,6 @@ import (
 	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 )
 
-// AspectRoute is the finding aspect used when a route has no counterpart on
-// the Gateway side. It is not a response difference, so it carries no test case.
-const AspectRoute = "route"
-
 // Result is what the collector hands to the rest of the pipeline.
 type Result struct {
 	// Routes are sorted by ID, so every stage downstream is deterministic.
@@ -156,7 +152,7 @@ func unmatchedFinding(route api.RouteSpec) api.Finding {
 	return api.Finding{
 		RouteID:   route.ID,
 		Severity:  api.SeverityCritical,
-		Aspect:    AspectRoute,
+		Aspect:    api.AspectRoute,
 		Baseline:  route.Source.String() + " serves " + displayHost(route) + route.Path,
 		Candidate: "no HTTPRoute matches this host and path",
 		Attribution: []api.Cause{{

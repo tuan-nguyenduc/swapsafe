@@ -73,8 +73,8 @@ func TestFromFiles(t *testing.T) {
 	if f.TestCaseID != "" {
 		t.Errorf("a route finding must carry no test case, got %q", f.TestCaseID)
 	}
-	if f.Aspect != AspectRoute {
-		t.Errorf("aspect = %q, want %q", f.Aspect, AspectRoute)
+	if f.Aspect != api.AspectRoute {
+		t.Errorf("aspect = %q, want %q", f.Aspect, api.AspectRoute)
 	}
 	if len(f.Attribution) != 1 || f.Attribution[0].Object.Name != "admin" {
 		t.Errorf("finding does not point at the Ingress: %+v", f.Attribution)

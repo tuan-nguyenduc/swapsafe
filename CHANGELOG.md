@@ -27,3 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `pkg/rule`: the `Rule` interface, the registry rules register themselves into from `init()`,
   a stable `TestCaseID` hash, and `BaselineRule` — a GET of the route path, the same path with
   the trailing slash flipped, and a sub-path, over HTTP and (for TLS routes) HTTPS.
+- `internal/generator`: collects the test cases every applicable rule wants for a route,
+  drops duplicate IDs, and reports each `nginx.ingress.kubernetes.io/` annotation no rule
+  verifies as an `info` finding rather than passing over it in silence.
