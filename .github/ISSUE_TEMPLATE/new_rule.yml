@@ -1,0 +1,31 @@
+name: New annotation rule
+description: Add support for an ingress-nginx annotation
+labels: ["kind/feature", "area/rules", "good first issue"]
+body:
+  - type: input
+    id: annotation
+    attributes:
+      label: Annotation
+      placeholder: nginx.ingress.kubernetes.io/rewrite-target
+    validations:
+      required: true
+  - type: input
+    id: upstream-docs
+    attributes:
+      label: ingress-nginx documentation link
+    validations:
+      required: true
+  - type: textarea
+    id: behaviour
+    attributes:
+      label: Observable behaviour
+      description: What does a client actually see? Status codes, headers, redirect targets.
+    validations:
+      required: true
+  - type: textarea
+    id: gateway-equivalent
+    attributes:
+      label: Gateway API equivalent
+      description: Which filter, policy or implementation-specific resource reproduces it — if any.
+    validations:
+      required: true

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/tuan-nguyenduc/swapsafe/discussions
+    about: Open-ended questions and ideas belong in Discussions.
+  - name: Security vulnerability
+    url: https://github.com/tuan-nguyenduc/swapsafe/security/advisories/new
+    about: Report privately. Never open a public issue for a vulnerability.

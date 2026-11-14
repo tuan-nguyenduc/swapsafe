@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest something swapsafe should do
+labels: ["kind/feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that swapsafe makes hard or impossible?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      description: swapsafe does not translate configuration, change traffic, or load test. See docs/PLAN.md section 2.
+      options:
+        - label: I have read the non-goals in docs/PLAN.md and this request is in scope.
+          required: true

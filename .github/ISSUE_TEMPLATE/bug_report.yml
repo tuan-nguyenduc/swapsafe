@@ -1,0 +1,38 @@
+name: Bug report
+description: swapsafe did the wrong thing
+labels: ["kind/bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Include the command you ran and the output. Redact hostnames if you need to.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Ideally the Ingress and HTTPRoute manifests, trimmed down.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: swapsafe version
+      description: Output of `swapsafe version`.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Kubernetes version, ingress-nginx version, Gateway implementation and version.
+    validations:
+      required: true
