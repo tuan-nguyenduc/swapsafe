@@ -1,12 +1,12 @@
 module github.com/tuan-nguyenduc/swapsafe
 
-go 1.26.11
+go 1.27.0
 
 require (
 	github.com/spf13/cobra v1.10.2
 	k8s.io/api v0.37.2
 	k8s.io/apimachinery v0.37.2
-	sigs.k8s.io/gateway-api v1.6.3
+	sigs.k8s.io/gateway-api v1.7.0
 	sigs.k8s.io/yaml v1.6.0
 )
 
