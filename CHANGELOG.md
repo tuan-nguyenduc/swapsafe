@@ -25,3 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `internal/collector`: read Ingress and HTTPRoute objects from multi-document YAML manifests and
   pair them by namespace, host and path. An Ingress route with no matching HTTPRoute becomes a
   `critical` finding.
+- `pkg/rule`: the `Rule` interface, the registry rules register themselves into from `init()`,
+  a stable `TestCaseID` hash, and `BaselineRule` — a GET of the route path, the same path with
+  the trailing slash flipped, and a sub-path, over HTTP and (for TLS routes) HTTPS.
