@@ -9,6 +9,7 @@ package v1alpha1
 
 import (
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -25,14 +26,27 @@ const (
 	PathTypeImplementationSpecific = "ImplementationSpecific"
 )
 
-// Finding aspects that are not response differences. Aspects that are come
-// from the rules themselves: "status", "header:location", "body", ...
+// The parts of a response, or of the configuration, a finding can be about.
 const (
 	// AspectRoute: the Ingress route has no counterpart on the Gateway side.
 	AspectRoute = "route"
 	// AspectAnnotation: an annotation no rule verifies.
 	AspectAnnotation = "annotation"
+	// AspectError: one endpoint failed to answer at all.
+	AspectError = "error"
+	// AspectStatus: the two endpoints answered with different status codes.
+	AspectStatus = "status"
+	// AspectBody: same status, different body.
+	AspectBody = "body"
+	// HeaderAspectPrefix starts every per-header aspect, as in "header:location".
+	HeaderAspectPrefix = "header:"
 )
+
+// HeaderAspect names the aspect for one response header. The name is
+// lowercased so an aspect never depends on how a proxy capitalized it.
+func HeaderAspect(name string) string {
+	return HeaderAspectPrefix + strings.ToLower(name)
+}
 
 // The two endpoints every test case is sent to.
 const (

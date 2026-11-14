@@ -38,3 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `X-Envoy-*`, `Traceparent`, `Content-Length`) plus anything in `ignoreHeaders`, masks
   credential headers, resolves `Location` to an absolute canonical URL, and reduces
   `Set-Cookie` to its name and behavioural attributes with the value redacted.
+- `internal/differ`: compares two normalized observations and assigns severity — crossing a
+  status class is `critical`, a redirect target or a header only one side sends is `major`,
+  a differing value inside the same status class is `minor`.
+- `internal/attribution`: names the annotation behind each finding and fills in the rule's hint.
