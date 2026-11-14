@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Raised the Go floor to 1.26.11 and `golang.org/x/net` to v0.62.0, clearing six advisories
+  `govulncheck` reported in the HTTP/2 stack.
+
 ### Added
 
 - Repository skeleton: Go module, directory layout, Apache-2.0 license, README, `CLAUDE.md`.

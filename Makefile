@@ -34,6 +34,10 @@ fmt: ## Format and tidy
 	go fmt ./...
 	go mod tidy
 
+.PHONY: vuln
+vuln: ## Scan dependencies and the toolchain for known vulnerabilities
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
 .PHONY: e2e
 e2e: ## Run the kind-based end-to-end suite (M1-T11)
 	go test -tags e2e -timeout 30m ./test/e2e/...
