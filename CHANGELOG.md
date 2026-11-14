@@ -15,3 +15,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a `zizmor` workflow audit. All actions pinned to full commit SHAs; `permissions: contents: read`.
 - Community files: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1),
   `SECURITY.md`, `GOVERNANCE.md`, `MAINTAINERS.md`, issue forms, PR template, `CODEOWNERS`.
+- cobra command skeleton with the `version` command (version, commit, build date via `-ldflags`)
+  and global `--log-level` / `--log-format` flags backed by `log/slog`.
