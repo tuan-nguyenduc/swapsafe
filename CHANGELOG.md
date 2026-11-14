@@ -18,10 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - cobra command skeleton with the `version` command (version, commit, build date via `-ldflags`)
   and global `--log-level` / `--log-format` flags backed by `log/slog`.
 - Dependabot for `gomod` and `github-actions` (PLAN section 6.3).
-- `internal/model`: the core types — `RouteSpec`, `TestCase`, `Observation`, `Finding` — plus
-  `Severity` with `--fail-on` ordering.
-- `pkg/api/v1alpha1`: the public JSON schema (`swapsafe.dev/v1alpha1`) for `results.json`,
-  with conversions from the internal model and round-trip tests.
+- `pkg/api/v1alpha1`: the core types — `RouteSpec`, `TestCase`, `Observation`, `Finding`,
+  `Severity` — carrying the JSON tags that define `results.json`
+  (`swapsafe.dev/v1alpha1`), with round-trip and determinism tests.
 - `internal/collector`: read Ingress and HTTPRoute objects from multi-document YAML manifests and
   pair them by namespace, host and path. An Ingress route with no matching HTTPRoute becomes a
   `critical` finding.

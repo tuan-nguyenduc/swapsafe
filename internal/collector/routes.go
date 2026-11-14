@@ -5,12 +5,12 @@ import (
 
 	networkingv1 "k8s.io/api/networking/v1"
 
-	"github.com/tuan-nguyenduc/swapsafe/internal/model"
+	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 )
 
 // routesFromIngress expands one Ingress into one RouteSpec per host/path pair.
-func routesFromIngress(ing networkingv1.Ingress) []model.RouteSpec {
-	source := model.ObjectRef{
+func routesFromIngress(ing networkingv1.Ingress) []api.RouteSpec {
+	source := api.ObjectRef{
 		Group:     networkingv1.GroupName,
 		Kind:      "Ingress",
 		Namespace: ing.Namespace,
@@ -18,7 +18,7 @@ func routesFromIngress(ing networkingv1.Ingress) []model.RouteSpec {
 	}
 	tlsHosts := tlsHostsOf(ing)
 
-	var routes []model.RouteSpec
+	var routes []api.RouteSpec
 	for _, rule := range ing.Spec.Rules {
 		// ponytail: a default-backend-only Ingress (no rules, or a rule with no
 		// HTTP paths) produces no route, so swapsafe says nothing about it.
@@ -28,11 +28,11 @@ func routesFromIngress(ing networkingv1.Ingress) []model.RouteSpec {
 			continue
 		}
 		for _, p := range rule.HTTP.Paths {
-			pathType := model.PathTypeImplementationSpecific
+			pathType := api.PathTypeImplementationSpecific
 			if p.PathType != nil {
 				pathType = string(*p.PathType)
 			}
-			routes = append(routes, model.RouteSpec{
+			routes = append(routes, api.RouteSpec{
 				ID:          routeID(ing.Namespace, ing.Name, rule.Host, p.Path),
 				Host:        rule.Host,
 				Path:        p.Path,

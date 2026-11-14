@@ -3,7 +3,7 @@ package rule
 import (
 	"testing"
 
-	"github.com/tuan-nguyenduc/swapsafe/internal/model"
+	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 )
 
 // fakeRule is a minimal Rule for exercising the registry.
@@ -13,12 +13,12 @@ type fakeRule struct {
 	applies     bool
 }
 
-func (f fakeRule) ID() string                                { return f.id }
-func (f fakeRule) Annotations() []string                     { return f.annotations }
-func (f fakeRule) Applies(model.RouteSpec) bool              { return f.applies }
-func (f fakeRule) Generate(model.RouteSpec) []model.TestCase { return nil }
-func (f fakeRule) Hint(model.Finding) string                 { return "" }
-func (f fakeRule) Compare(model.TestCase, model.Observation, model.Observation) []model.Finding {
+func (f fakeRule) ID() string                            { return f.id }
+func (f fakeRule) Annotations() []string                 { return f.annotations }
+func (f fakeRule) Applies(api.RouteSpec) bool            { return f.applies }
+func (f fakeRule) Generate(api.RouteSpec) []api.TestCase { return nil }
+func (f fakeRule) Hint(api.Finding) string               { return "" }
+func (f fakeRule) Compare(api.TestCase, api.Observation, api.Observation) []api.Finding {
 	return nil
 }
 
@@ -91,7 +91,7 @@ func TestFor(t *testing.T) {
 	Register(fakeRule{id: "nginx.yes", applies: true})
 	Register(fakeRule{id: "nginx.no"})
 
-	got := For(model.RouteSpec{ID: "shop/web/x/"})
+	got := For(api.RouteSpec{ID: "shop/web/x/"})
 	if len(got) != 1 || got[0].ID() != "nginx.yes" {
 		t.Fatalf("For returned %v, want only nginx.yes", ids(got))
 	}

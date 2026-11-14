@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/tuan-nguyenduc/swapsafe/internal/model"
+	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 )
 
 func TestFromFiles(t *testing.T) {
@@ -45,7 +45,7 @@ func TestFromFiles(t *testing.T) {
 	if web.Annotations["nginx.ingress.kubernetes.io/ssl-redirect"] != "true" {
 		t.Errorf("annotations lost: %+v", web.Annotations)
 	}
-	if checkout.PathType != model.PathTypeExact {
+	if checkout.PathType != api.PathTypeExact {
 		t.Errorf("pathType = %q, want Exact", checkout.PathType)
 	}
 	if checkout.Target == nil {
@@ -67,7 +67,7 @@ func TestFromFiles(t *testing.T) {
 	if f.RouteID != admin.ID {
 		t.Errorf("finding RouteID = %q, want %q", f.RouteID, admin.ID)
 	}
-	if f.Severity != model.SeverityCritical {
+	if f.Severity != api.SeverityCritical {
 		t.Errorf("severity = %q, want critical", f.Severity)
 	}
 	if f.TestCaseID != "" {
@@ -199,7 +199,7 @@ func TestPathMatches(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := pathMatches(tt.match, model.RouteSpec{Path: tt.ingPath})
+			got := pathMatches(tt.match, api.RouteSpec{Path: tt.ingPath})
 			if got != tt.want {
 				t.Errorf("pathMatches(%+v, %q) = %v, want %v", tt.match, tt.ingPath, got, tt.want)
 			}
@@ -212,10 +212,10 @@ func TestRulesCoverEmptyMatches(t *testing.T) {
 
 	// A rule with no matches defaults to a "/" prefix: it covers any path.
 	rules := []gatewayv1.HTTPRouteRule{{}}
-	if !rulesCover(rules, model.RouteSpec{Path: "/deep/path"}) {
+	if !rulesCover(rules, api.RouteSpec{Path: "/deep/path"}) {
 		t.Error("a rule with no matches must cover every path")
 	}
-	if rulesCover(nil, model.RouteSpec{Path: "/"}) {
+	if rulesCover(nil, api.RouteSpec{Path: "/"}) {
 		t.Error("an HTTPRoute with no rules covers nothing")
 	}
 }
@@ -254,7 +254,7 @@ func TestRoutesFromIngressDefaultsPathType(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("got %d routes, want 1", len(got))
 	}
-	if got[0].PathType != model.PathTypeImplementationSpecific {
+	if got[0].PathType != api.PathTypeImplementationSpecific {
 		t.Errorf("pathType = %q, want ImplementationSpecific", got[0].PathType)
 	}
 }

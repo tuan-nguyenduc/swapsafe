@@ -10,7 +10,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/tuan-nguyenduc/swapsafe/internal/model"
+	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 )
 
 // Rule is the contract every annotation implements (PLAN section 5.2).
@@ -21,14 +21,14 @@ type Rule interface {
 	// what `swapsafe rules` prints and what marks an annotation as verified.
 	Annotations() []string
 	// Applies reports whether this rule has anything to say about the route.
-	Applies(r model.RouteSpec) bool
+	Applies(r api.RouteSpec) bool
 	// Generate returns the requests to send to both endpoints.
-	Generate(r model.RouteSpec) []model.TestCase
+	Generate(r api.RouteSpec) []api.TestCase
 	// Compare judges a pair of responses. Returning nil means "nothing beyond
 	// what the generic Assertion comparison already covers".
-	Compare(tc model.TestCase, base, cand model.Observation) []model.Finding
+	Compare(tc api.TestCase, base, cand api.Observation) []api.Finding
 	// Hint suggests the Gateway API configuration that would close the gap.
-	Hint(f model.Finding) string
+	Hint(f api.Finding) string
 }
 
 // The registry is the one global in swapsafe, by design (PLAN section 6.1):
@@ -71,7 +71,7 @@ func All() []Rule {
 }
 
 // For returns the rules that apply to a route, sorted by ID.
-func For(route model.RouteSpec) []Rule {
+func For(route api.RouteSpec) []Rule {
 	var out []Rule
 	for _, r := range All() {
 		if r.Applies(route) {

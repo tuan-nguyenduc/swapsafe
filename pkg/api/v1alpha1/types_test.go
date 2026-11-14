@@ -7,42 +7,40 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/tuan-nguyenduc/swapsafe/internal/model"
 )
 
-// sampleRun returns one fully populated run: every field of every type set to
-// a non-zero value, so a field added without a JSON tag shows up as a
+// sampleResults returns a fully populated document: every field of every type
+// set to a non-zero value, so a field added without a JSON tag shows up as a
 // round-trip failure rather than silently vanishing from results.json.
-func sampleRun() (Metadata, []model.RouteSpec, []model.TestCase, map[string][]model.Observation, []model.Finding) {
-	target := model.ObjectRef{
+func sampleResults() Results {
+	source := ObjectRef{Kind: "Ingress", Namespace: "shop", Name: "web"}
+	target := ObjectRef{
 		Group: "gateway.networking.k8s.io", Kind: "HTTPRoute", Namespace: "shop", Name: "web",
 	}
-	source := model.ObjectRef{Kind: "Ingress", Namespace: "shop", Name: "web"}
 
-	meta := Metadata{
-		GeneratedAt: time.Date(2026, time.November, 14, 9, 30, 0, 0, time.UTC),
+	res := NewResults(Metadata{
+		GeneratedAt: time.Date(2026, time.November, 15, 9, 30, 0, 0, time.UTC),
 		Version:     "v0.1.0",
 		Baseline:    "https://203.0.113.10",
 		Candidate:   "https://203.0.113.20",
-	}
+	})
 
-	routes := []model.RouteSpec{{
+	res.Routes = []RouteSpec{{
 		ID:          "shop/web/shop.example.com/",
 		Host:        "shop.example.com",
 		Path:        "/",
-		PathType:    model.PathTypePrefix,
+		PathType:    PathTypePrefix,
 		TLS:         true,
 		Annotations: map[string]string{"nginx.ingress.kubernetes.io/ssl-redirect": "true"},
 		Source:      source,
 		Target:      &target,
 	}}
 
-	cases := []model.TestCase{{
+	res.TestCases = []TestCase{{
 		ID:      "c0ffee",
-		RouteID: routes[0].ID,
+		RouteID: res.Routes[0].ID,
 		RuleID:  "nginx.ssl-redirect",
-		Request: model.RequestSpec{
+		Request: RequestSpec{
 			Method:  http.MethodGet,
 			Scheme:  "http",
 			Host:    "shop.example.com",
@@ -51,40 +49,37 @@ func sampleRun() (Metadata, []model.RouteSpec, []model.TestCase, map[string][]mo
 			Headers: http.Header{"Accept": []string{"text/html"}},
 			Body:    []byte("ignored for GET"),
 		},
-		Expect: []model.Assertion{
-			{Aspect: "status", Severity: model.SeverityCritical},
+		Expect: []Assertion{
+			{Aspect: "status", Severity: SeverityCritical},
 			{Aspect: "header:location"},
 		},
 	}}
 
-	observations := map[string][]model.Observation{
-		"c0ffee": {
-			{
-				Endpoint:   model.EndpointBaseline,
-				Status:     http.StatusMovedPermanently,
-				Headers:    http.Header{"Location": []string{"https://shop.example.com/checkout"}},
-				BodySHA256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-				BodySample: []byte("<html>"),
-				LatencyMS:  12,
-			},
-			{
-				Endpoint:  model.EndpointCandidate,
-				Status:    http.StatusFound,
-				Headers:   http.Header{"Location": []string{"https://shop.example.com/checkout"}},
-				LatencyMS: 9,
-				Err:       "",
-			},
+	res.Observations = map[string][]Observation{"c0ffee": {
+		{
+			Endpoint:   EndpointBaseline,
+			Status:     http.StatusMovedPermanently,
+			Headers:    http.Header{"Location": []string{"https://shop.example.com/checkout"}},
+			BodySHA256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			BodySample: []byte("<html>"),
+			LatencyMS:  12,
 		},
-	}
+		{
+			Endpoint:  EndpointCandidate,
+			Status:    http.StatusFound,
+			Headers:   http.Header{"Location": []string{"https://shop.example.com/checkout"}},
+			LatencyMS: 9,
+		},
+	}}
 
-	findings := []model.Finding{{
-		RouteID:    routes[0].ID,
+	res.Findings = []Finding{{
+		RouteID:    res.Routes[0].ID,
 		TestCaseID: "c0ffee",
-		Severity:   model.SeverityMinor,
+		Severity:   SeverityMinor,
 		Aspect:     "status",
 		Baseline:   "301",
 		Candidate:  "302",
-		Attribution: []model.Cause{{
+		Attribution: []Cause{{
 			Annotation: "nginx.ingress.kubernetes.io/ssl-redirect",
 			Value:      "true",
 			Object:     source,
@@ -92,13 +87,13 @@ func sampleRun() (Metadata, []model.RouteSpec, []model.TestCase, map[string][]mo
 		Hint: "Set a RequestRedirect filter with statusCode: 301.",
 	}}
 
-	return meta, routes, cases, observations, findings
+	return res
 }
 
 func TestResultsJSONRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	want := NewResults(sampleRun())
+	want := sampleResults()
 
 	data, err := json.Marshal(want)
 	if err != nil {
@@ -118,7 +113,7 @@ func TestResultsJSONRoundTrip(t *testing.T) {
 func TestResultsCarriesAPIVersion(t *testing.T) {
 	t.Parallel()
 
-	data, err := json.Marshal(NewResults(sampleRun()))
+	data, err := json.Marshal(sampleResults())
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -143,12 +138,12 @@ func TestResultsCarriesAPIVersion(t *testing.T) {
 func TestResultsMarshalIsDeterministic(t *testing.T) {
 	t.Parallel()
 
-	first, err := json.Marshal(NewResults(sampleRun()))
+	first, err := json.Marshal(sampleResults())
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
 	for range 10 {
-		next, err := json.Marshal(NewResults(sampleRun()))
+		next, err := json.Marshal(sampleResults())
 		if err != nil {
 			t.Fatalf("marshal: %v", err)
 		}
@@ -161,48 +156,15 @@ func TestResultsMarshalIsDeterministic(t *testing.T) {
 func TestNewResultsDefaultsGeneratedAt(t *testing.T) {
 	t.Parallel()
 
-	got := NewResults(Metadata{}, nil, nil, nil, nil)
+	got := NewResults(Metadata{})
 	if got.Metadata.GeneratedAt.IsZero() {
 		t.Error("GeneratedAt was left zero")
 	}
 	if loc := got.Metadata.GeneratedAt.Location(); loc != time.UTC {
 		t.Errorf("GeneratedAt location = %v, want UTC", loc)
 	}
-	if got.Routes != nil || got.TestCases != nil || got.Observations != nil || got.Findings != nil {
-		t.Error("empty input should leave the collections nil, not empty slices")
-	}
-}
-
-func TestNewResultsConvertsEveryField(t *testing.T) {
-	t.Parallel()
-
-	meta, routes, cases, observations, findings := sampleRun()
-	got := NewResults(meta, routes, cases, observations, findings)
-
-	route := got.Routes[0]
-	if route.ID != routes[0].ID || route.PathType != model.PathTypePrefix || !route.TLS {
-		t.Errorf("route converted wrong: %+v", route)
-	}
-	if route.Target == nil || route.Target.Name != "web" {
-		t.Errorf("target reference lost: %+v", route.Target)
-	}
-
-	tc := got.TestCases[0]
-	if tc.Request.Query != "ref=email" || tc.Request.Headers["Accept"][0] != "text/html" {
-		t.Errorf("request converted wrong: %+v", tc.Request)
-	}
-	if tc.Expect[0].Severity != string(model.SeverityCritical) {
-		t.Errorf("assertion severity = %q", tc.Expect[0].Severity)
-	}
-	if tc.Expect[1].Severity != "" {
-		t.Errorf("unset assertion severity became %q, want empty", tc.Expect[1].Severity)
-	}
-
-	if got.Findings[0].Attribution[0].Object.Kind != "Ingress" {
-		t.Errorf("attribution lost its object: %+v", got.Findings[0].Attribution)
-	}
-	if got.Observations["c0ffee"][1].Error != "" {
-		t.Errorf("unexpected error on the candidate observation")
+	if got.APIVersion != APIVersion || got.Kind != KindResults {
+		t.Errorf("schema fields not stamped: %+v", got)
 	}
 }
 
@@ -211,10 +173,8 @@ func TestNewResultsConvertsEveryField(t *testing.T) {
 func TestRouteWithoutTargetOmitsIt(t *testing.T) {
 	t.Parallel()
 
-	res := NewResults(Metadata{}, []model.RouteSpec{{ID: "shop/web/x/", Source: model.ObjectRef{Kind: "Ingress", Name: "web"}}}, nil, nil, nil)
-	if res.Routes[0].Target != nil {
-		t.Fatalf("Target = %+v, want nil", res.Routes[0].Target)
-	}
+	res := NewResults(Metadata{})
+	res.Routes = []RouteSpec{{ID: "shop/web/x/", Source: ObjectRef{Kind: "Ingress", Name: "web"}}}
 
 	data, err := json.Marshal(res)
 	if err != nil {

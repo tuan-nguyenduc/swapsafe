@@ -8,7 +8,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/tuan-nguyenduc/swapsafe/internal/model"
+	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 )
 
 // AspectRoute is the finding aspect used when a route has no counterpart on
@@ -18,10 +18,10 @@ const AspectRoute = "route"
 // Result is what the collector hands to the rest of the pipeline.
 type Result struct {
 	// Routes are sorted by ID, so every stage downstream is deterministic.
-	Routes []model.RouteSpec
+	Routes []api.RouteSpec
 	// Findings reports routes with no matching HTTPRoute. Those are critical:
 	// the traffic has nowhere to go after the cutover.
-	Findings []model.Finding
+	Findings []api.Finding
 }
 
 // FromFiles reads Ingress and HTTPRoute objects from YAML manifests and pairs
@@ -57,7 +57,7 @@ func pair(ingresses []networkingv1.Ingress, httpRoutes []gatewayv1.HTTPRoute) Re
 // findTarget looks for the HTTPRoute that should carry this route's traffic:
 // same namespace, a hostname covering the route's host, and a path match on
 // the route's path.
-func findTarget(route model.RouteSpec, httpRoutes []gatewayv1.HTTPRoute) (model.ObjectRef, bool) {
+func findTarget(route api.RouteSpec, httpRoutes []gatewayv1.HTTPRoute) (api.ObjectRef, bool) {
 	for _, hr := range httpRoutes {
 		if hr.Namespace != route.Source.Namespace {
 			continue
@@ -68,14 +68,14 @@ func findTarget(route model.RouteSpec, httpRoutes []gatewayv1.HTTPRoute) (model.
 		if !rulesCover(hr.Spec.Rules, route) {
 			continue
 		}
-		return model.ObjectRef{
+		return api.ObjectRef{
 			Group:     gatewayv1.GroupName,
 			Kind:      "HTTPRoute",
 			Namespace: hr.Namespace,
 			Name:      hr.Name,
 		}, true
 	}
-	return model.ObjectRef{}, false
+	return api.ObjectRef{}, false
 }
 
 // hostnamesCover reports whether an HTTPRoute serves host. An HTTPRoute with
@@ -95,7 +95,7 @@ func hostnamesCover(hostnames []gatewayv1.Hostname, host string) bool {
 // rulesCover reports whether any rule of an HTTPRoute matches the route's
 // path. A rule with no matches defaults to a "/" prefix, which covers
 // everything.
-func rulesCover(rules []gatewayv1.HTTPRouteRule, route model.RouteSpec) bool {
+func rulesCover(rules []gatewayv1.HTTPRouteRule, route api.RouteSpec) bool {
 	for _, rule := range rules {
 		if len(rule.Matches) == 0 {
 			return true
@@ -113,7 +113,7 @@ func rulesCover(rules []gatewayv1.HTTPRouteRule, route model.RouteSpec) bool {
 // This is a static comparison of the configuration, not of behaviour: proving
 // the two agree is what the probing pipeline does. Here we only need to decide
 // which HTTPRoute is the counterpart of which Ingress route.
-func pathMatches(p *gatewayv1.HTTPPathMatch, route model.RouteSpec) bool {
+func pathMatches(p *gatewayv1.HTTPPathMatch, route api.RouteSpec) bool {
 	if p == nil || p.Value == nil {
 		// Defaults to PathPrefix "/", which covers every path.
 		return true
@@ -152,14 +152,14 @@ func normalizePath(p string) string {
 	return p
 }
 
-func unmatchedFinding(route model.RouteSpec) model.Finding {
-	return model.Finding{
+func unmatchedFinding(route api.RouteSpec) api.Finding {
+	return api.Finding{
 		RouteID:   route.ID,
-		Severity:  model.SeverityCritical,
+		Severity:  api.SeverityCritical,
 		Aspect:    AspectRoute,
 		Baseline:  route.Source.String() + " serves " + displayHost(route) + route.Path,
 		Candidate: "no HTTPRoute matches this host and path",
-		Attribution: []model.Cause{{
+		Attribution: []api.Cause{{
 			Object: route.Source,
 		}},
 		Hint: "No Gateway API route carries this traffic. Re-run ingress2gateway for " +
@@ -168,7 +168,7 @@ func unmatchedFinding(route model.RouteSpec) model.Finding {
 	}
 }
 
-func displayHost(route model.RouteSpec) string {
+func displayHost(route api.RouteSpec) string {
 	if route.Host == "" {
 		return "*"
 	}

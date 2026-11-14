@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/tuan-nguyenduc/swapsafe/internal/model"
+	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 )
 
 func TestBaselineIsAlwaysRegistered(t *testing.T) {
@@ -12,7 +12,7 @@ func TestBaselineIsAlwaysRegistered(t *testing.T) {
 
 	for _, r := range All() {
 		if r.ID() == BaselineID {
-			if !r.Applies(model.RouteSpec{}) {
+			if !r.Applies(api.RouteSpec{}) {
 				t.Error("the baseline rule must apply to every route")
 			}
 			return
@@ -26,18 +26,18 @@ func TestBaselineGenerate(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		route model.RouteSpec
+		route api.RouteSpec
 		want  []string // "<scheme> <path>", in order
 	}{
 		{
 			name:  "prefix root, plaintext",
-			route: model.RouteSpec{ID: "shop/web/h/", Path: "/", PathType: model.PathTypePrefix},
+			route: api.RouteSpec{ID: "shop/web/h/", Path: "/", PathType: api.PathTypePrefix},
 			// "/" has no trailing slash to flip, so only two variants.
 			want: []string{"http /", "http /swapsafe-probe"},
 		},
 		{
 			name:  "prefix sub-path with TLS",
-			route: model.RouteSpec{ID: "shop/web/h/shop", Path: "/shop", PathType: model.PathTypePrefix, TLS: true},
+			route: api.RouteSpec{ID: "shop/web/h/shop", Path: "/shop", PathType: api.PathTypePrefix, TLS: true},
 			want: []string{
 				"http /shop", "http /shop/", "http /shop/swapsafe-probe",
 				"https /shop", "https /shop/", "https /shop/swapsafe-probe",
@@ -45,17 +45,17 @@ func TestBaselineGenerate(t *testing.T) {
 		},
 		{
 			name:  "exact path has no sub-path",
-			route: model.RouteSpec{ID: "shop/web/h/checkout", Path: "/checkout", PathType: model.PathTypeExact},
+			route: api.RouteSpec{ID: "shop/web/h/checkout", Path: "/checkout", PathType: api.PathTypeExact},
 			want:  []string{"http /checkout", "http /checkout/"},
 		},
 		{
 			name:  "trailing slash is flipped off",
-			route: model.RouteSpec{ID: "shop/web/h/shop/", Path: "/shop/", PathType: model.PathTypePrefix},
+			route: api.RouteSpec{ID: "shop/web/h/shop/", Path: "/shop/", PathType: api.PathTypePrefix},
 			want:  []string{"http /shop/", "http /shop", "http /shop/swapsafe-probe"},
 		},
 		{
 			name:  "empty path is treated as root",
-			route: model.RouteSpec{ID: "shop/web/h", PathType: model.PathTypeImplementationSpecific},
+			route: api.RouteSpec{ID: "shop/web/h", PathType: api.PathTypeImplementationSpecific},
 			want:  []string{"http /", "http /swapsafe-probe"},
 		},
 	}
@@ -93,7 +93,7 @@ func TestBaselineGenerate(t *testing.T) {
 func TestBaselineIDsAreUnique(t *testing.T) {
 	t.Parallel()
 
-	route := model.RouteSpec{ID: "shop/web/h/shop", Path: "/shop", PathType: model.PathTypePrefix, TLS: true}
+	route := api.RouteSpec{ID: "shop/web/h/shop", Path: "/shop", PathType: api.PathTypePrefix, TLS: true}
 	seen := map[string]string{}
 	for _, tc := range (baselineRule{}).Generate(route) {
 		if prev, dup := seen[tc.ID]; dup {
@@ -106,7 +106,7 @@ func TestBaselineIDsAreUnique(t *testing.T) {
 func TestBaselineGenerateIsDeterministic(t *testing.T) {
 	t.Parallel()
 
-	route := model.RouteSpec{ID: "shop/web/h/shop", Path: "/shop", PathType: model.PathTypePrefix, TLS: true}
+	route := api.RouteSpec{ID: "shop/web/h/shop", Path: "/shop", PathType: api.PathTypePrefix, TLS: true}
 	first := (baselineRule{}).Generate(route)
 	for range 5 {
 		next := (baselineRule{}).Generate(route)
@@ -125,20 +125,20 @@ func TestBaselineHint(t *testing.T) {
 	t.Parallel()
 
 	for _, aspect := range []string{"status", "header:location", "body"} {
-		if got := (baselineRule{}).Hint(model.Finding{Aspect: aspect}); got == "" {
+		if got := (baselineRule{}).Hint(api.Finding{Aspect: aspect}); got == "" {
 			t.Errorf("no hint for aspect %q", aspect)
 		}
 	}
-	if got := (baselineRule{}).Hint(model.Finding{Aspect: "cors"}); got != "" {
+	if got := (baselineRule{}).Hint(api.Finding{Aspect: "cors"}); got != "" {
 		t.Errorf("unexpected hint for an aspect the baseline does not own: %q", got)
 	}
 }
 
-func variant(tc model.TestCase) string {
+func variant(tc api.TestCase) string {
 	return tc.Request.Scheme + " " + tc.Request.Path
 }
 
-func variants(cases []model.TestCase) []string {
+func variants(cases []api.TestCase) []string {
 	out := make([]string, 0, len(cases))
 	for _, tc := range cases {
 		out = append(out, variant(tc))

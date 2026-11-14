@@ -1,10 +1,16 @@
-// Package v1alpha1 is the public, versioned shape of everything swapsafe
-// writes to results.json. These are JSON-tagged copies of the internal model
-// types: internal/model is free to change, this package is not. Within one
-// apiVersion, changes here must stay backwards compatible (PLAN section 5.1).
+// Package v1alpha1 holds swapsafe's core types. They are both what the
+// pipeline passes between stages and, with their JSON tags, the exact shape
+// of results.json. Rules live outside this module's internal tree, so the
+// types their interface mentions have to be importable from anywhere.
+//
+// Within one apiVersion these types only change in backwards compatible ways
+// (PLAN section 5.1).
 package v1alpha1
 
-import "time"
+import (
+	"net/http"
+	"time"
+)
 
 // APIVersion identifies this schema. It appears in every document swapsafe writes.
 const APIVersion = "swapsafe.dev/v1alpha1"
@@ -12,17 +18,41 @@ const APIVersion = "swapsafe.dev/v1alpha1"
 // KindResults is the kind of a results document.
 const KindResults = "Results"
 
+// Path types as they appear on an Ingress rule.
+const (
+	PathTypeExact                  = "Exact"
+	PathTypePrefix                 = "Prefix"
+	PathTypeImplementationSpecific = "ImplementationSpecific"
+)
+
+// The two endpoints every test case is sent to.
+const (
+	EndpointBaseline  = "baseline"
+	EndpointCandidate = "candidate"
+)
+
 // Results is the whole output of one run. It carries everything needed to
 // re-render any report format without probing again (PLAN section 3).
 type Results struct {
-	APIVersion string     `json:"apiVersion"`
-	Kind       string     `json:"kind"`
-	Metadata   Metadata   `json:"metadata"`
-	Routes     []Route    `json:"routes"`
-	TestCases  []TestCase `json:"testCases"`
+	APIVersion string      `json:"apiVersion"`
+	Kind       string      `json:"kind"`
+	Metadata   Metadata    `json:"metadata"`
+	Routes     []RouteSpec `json:"routes"`
+	TestCases  []TestCase  `json:"testCases"`
 	// Observations maps a test case ID to the responses from both endpoints.
 	Observations map[string][]Observation `json:"observations"`
 	Findings     []Finding                `json:"findings"`
+}
+
+// NewResults stamps the schema fields on a results document and defaults the
+// timestamp, so no caller has to remember either.
+func NewResults(meta Metadata) Results {
+	if meta.GeneratedAt.IsZero() {
+		meta.GeneratedAt = time.Now()
+	}
+	meta.GeneratedAt = meta.GeneratedAt.UTC()
+
+	return Results{APIVersion: APIVersion, Kind: KindResults, Metadata: meta}
 }
 
 // Metadata records what was run, when, and against what.
@@ -33,7 +63,7 @@ type Metadata struct {
 	Candidate   string    `json:"candidate"`
 }
 
-// ObjectRef identifies a Kubernetes object.
+// ObjectRef identifies a Kubernetes object a route or a finding came from.
 type ObjectRef struct {
 	Group     string `json:"group,omitempty"`
 	Kind      string `json:"kind"`
@@ -41,8 +71,23 @@ type ObjectRef struct {
 	Name      string `json:"name"`
 }
 
-// Route is one logical route, from the source Ingress to its HTTPRoute.
-type Route struct {
+// String renders the reference the way kubectl would print it.
+func (o ObjectRef) String() string {
+	kind := o.Kind
+	if o.Group != "" {
+		kind += "." + o.Group
+	}
+	if o.Namespace == "" {
+		return kind + " " + o.Name
+	}
+	return kind + " " + o.Namespace + "/" + o.Name
+}
+
+// RouteSpec is one logical route, normalized from the source Ingress and,
+// where one was found, the Gateway API HTTPRoute meant to replace it.
+type RouteSpec struct {
+	// ID is "<namespace>/<ingress>/<host><path>". It is stable across runs so
+	// that reports from different runs can be compared.
 	ID          string            `json:"id"`
 	Host        string            `json:"host"`
 	Path        string            `json:"path"`
@@ -50,62 +95,74 @@ type Route struct {
 	TLS         bool              `json:"tls"`
 	Annotations map[string]string `json:"annotations,omitempty"`
 	Source      ObjectRef         `json:"source"`
-	Target      *ObjectRef        `json:"target,omitempty"`
+	// Target is nil when no HTTPRoute could be matched to this route.
+	Target *ObjectRef `json:"target,omitempty"`
 }
 
-// Request is the request a test case sends to both endpoints.
-type Request struct {
-	Method  string              `json:"method"`
-	Scheme  string              `json:"scheme"`
-	Host    string              `json:"host"`
-	Path    string              `json:"path"`
-	Query   string              `json:"query,omitempty"`
-	Headers map[string][]string `json:"headers,omitempty"`
-	Body    []byte              `json:"body,omitempty"`
+// RequestSpec is the request a test case sends to both endpoints. The host
+// here is the route's host: the prober connects to the endpoint address but
+// sets Host and SNI from this field, so routes can be tested before DNS moves.
+type RequestSpec struct {
+	Method  string      `json:"method"`
+	Scheme  string      `json:"scheme"`
+	Host    string      `json:"host"`
+	Path    string      `json:"path"`
+	Query   string      `json:"query,omitempty"`
+	Headers http.Header `json:"headers,omitempty"`
+	Body    []byte      `json:"body,omitempty"`
 }
 
-// Assertion names a response aspect a rule compares, and how bad a mismatch is.
+// Assertion names an aspect of the response that a rule cares about, and the
+// severity to report when the two endpoints disagree on it. An empty Severity
+// means the differ picks the default for that aspect.
 type Assertion struct {
-	Aspect   string `json:"aspect"`
-	Severity string `json:"severity,omitempty"`
+	Aspect   string   `json:"aspect"` // "status", "header:location", "body", ...
+	Severity Severity `json:"severity,omitempty"`
 }
 
-// TestCase is one request sent to both endpoints.
+// TestCase is one request to send to both endpoints and compare.
 type TestCase struct {
+	// ID is a stable hash of the route, the rule and the variant, so the same
+	// input always produces the same test case ID.
 	ID      string      `json:"id"`
 	RouteID string      `json:"routeId"`
-	RuleID  string      `json:"ruleId"`
-	Request Request     `json:"request"`
+	RuleID  string      `json:"ruleId"` // "nginx.ssl-redirect"
+	Request RequestSpec `json:"request"`
 	Expect  []Assertion `json:"expect,omitempty"`
 }
 
-// Observation is one endpoint's normalized response.
+// Observation is one endpoint's response to a test case, after normalization.
 type Observation struct {
-	Endpoint   string              `json:"endpoint"`
-	Status     int                 `json:"status"`
-	Headers    map[string][]string `json:"headers,omitempty"`
-	BodySHA256 string              `json:"bodySha256,omitempty"`
-	BodySample []byte              `json:"bodySample,omitempty"`
-	LatencyMS  int64               `json:"latencyMs"`
-	Error      string              `json:"error,omitempty"`
+	Endpoint   string      `json:"endpoint"` // EndpointBaseline or EndpointCandidate
+	Status     int         `json:"status"`
+	Headers    http.Header `json:"headers,omitempty"`
+	BodySHA256 string      `json:"bodySha256,omitempty"`
+	// BodySample holds at most 4 KiB and is only populated when the endpoints
+	// differ and --include-bodies was passed.
+	BodySample []byte `json:"bodySample,omitempty"`
+	LatencyMS  int64  `json:"latencyMs"`
+	// Err is set when the request failed outright (network, TLS, timeout).
+	Err string `json:"error,omitempty"`
 }
 
 // Cause is an annotation, and the object carrying it, that explains a finding.
 type Cause struct {
-	Annotation string    `json:"annotation"`
+	Annotation string    `json:"annotation,omitempty"` // "nginx.ingress.kubernetes.io/rewrite-target"
 	Value      string    `json:"value,omitempty"`
 	Object     ObjectRef `json:"object"`
 }
 
 // Finding is one meaningful difference between the two endpoints.
 type Finding struct {
-	RouteID string `json:"routeId"`
-	// TestCaseID is empty for findings about a route rather than a request.
-	TestCaseID  string  `json:"testCaseId,omitempty"`
-	Severity    string  `json:"severity"`
-	Aspect      string  `json:"aspect"`
-	Baseline    string  `json:"baseline"`
-	Candidate   string  `json:"candidate"`
-	Attribution []Cause `json:"attribution,omitempty"`
-	Hint        string  `json:"hint,omitempty"`
+	// RouteID is always set. TestCaseID is empty for findings that belong to a
+	// route rather than to a request — an Ingress route with no matching
+	// HTTPRoute, or an annotation no rule verifies.
+	RouteID     string   `json:"routeId"`
+	TestCaseID  string   `json:"testCaseId,omitempty"`
+	Severity    Severity `json:"severity"`
+	Aspect      string   `json:"aspect"`
+	Baseline    string   `json:"baseline"`
+	Candidate   string   `json:"candidate"`
+	Attribution []Cause  `json:"attribution,omitempty"`
+	Hint        string   `json:"hint,omitempty"`
 }

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/tuan-nguyenduc/swapsafe/internal/model"
+	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 )
 
 // BaselineID is the rule that runs for every route, annotations or not.
@@ -27,24 +27,24 @@ func (baselineRule) ID() string { return BaselineID }
 // Annotations is empty: this rule is not driven by one.
 func (baselineRule) Annotations() []string { return nil }
 
-func (baselineRule) Applies(model.RouteSpec) bool { return true }
+func (baselineRule) Applies(api.RouteSpec) bool { return true }
 
-func (baselineRule) Generate(r model.RouteSpec) []model.TestCase {
-	var cases []model.TestCase
+func (baselineRule) Generate(r api.RouteSpec) []api.TestCase {
+	var cases []api.TestCase
 	for _, scheme := range baselineSchemes(r) {
 		for _, path := range baselinePaths(r) {
 			variant := scheme + " " + path
-			cases = append(cases, model.TestCase{
+			cases = append(cases, api.TestCase{
 				ID:      TestCaseID(r.ID, BaselineID, variant),
 				RouteID: r.ID,
 				RuleID:  BaselineID,
-				Request: model.RequestSpec{
+				Request: api.RequestSpec{
 					Method: http.MethodGet,
 					Scheme: scheme,
 					Host:   r.Host,
 					Path:   path,
 				},
-				Expect: []model.Assertion{
+				Expect: []api.Assertion{
 					{Aspect: "status"},
 					{Aspect: "header:location"},
 					{Aspect: "body"},
@@ -58,11 +58,11 @@ func (baselineRule) Generate(r model.RouteSpec) []model.TestCase {
 // Compare adds nothing: the differ already compares the aspects listed in
 // Expect. A rule only implements Compare when it needs a judgement the
 // generic comparison cannot make.
-func (baselineRule) Compare(model.TestCase, model.Observation, model.Observation) []model.Finding {
+func (baselineRule) Compare(api.TestCase, api.Observation, api.Observation) []api.Finding {
 	return nil
 }
 
-func (baselineRule) Hint(f model.Finding) string {
+func (baselineRule) Hint(f api.Finding) string {
 	switch {
 	case f.Aspect == "status":
 		return "The two endpoints answer this request with different status codes. " +
@@ -82,7 +82,7 @@ func (baselineRule) Hint(f model.Finding) string {
 // baselineSchemes probes https only for routes the Ingress terminates TLS for.
 // Probing https on a plaintext route would fail on both sides and report a
 // difference that is really just an absent listener.
-func baselineSchemes(r model.RouteSpec) []string {
+func baselineSchemes(r api.RouteSpec) []string {
 	if r.TLS {
 		return []string{"http", "https"}
 	}
@@ -91,7 +91,7 @@ func baselineSchemes(r model.RouteSpec) []string {
 
 // baselinePaths returns the path variants to probe, in a stable order and
 // with no duplicates.
-func baselinePaths(r model.RouteSpec) []string {
+func baselinePaths(r api.RouteSpec) []string {
 	path := r.Path
 	if path == "" {
 		path = "/"
@@ -102,7 +102,7 @@ func baselinePaths(r model.RouteSpec) []string {
 		paths = append(paths, alt)
 	}
 	// An Exact path has no sub-paths by definition.
-	if r.PathType != model.PathTypeExact {
+	if r.PathType != api.PathTypeExact {
 		paths = append(paths, subPath(path))
 	}
 	return paths

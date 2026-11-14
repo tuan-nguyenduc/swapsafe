@@ -14,22 +14,16 @@ linters:
   settings:
     depguard:
       rules:
-        # PLAN section 4: model is a leaf package.
-        model:
-          files: ["**/internal/model/**"]
+        # PLAN section 4: the public packages are a leaf. Rules and the Rule
+        # interface live here, so nothing under internal/ may leak into them.
+        public:
+          files: ["**/pkg/**", "**/rules/**"]
           deny:
             - pkg: github.com/tuan-nguyenduc/swapsafe/internal
-              desc: internal/model must not import other internal packages
-        # PLAN section 4: generator and differ only see model and pkg/rule.
+              desc: pkg/ and rules/ must not import internal/ (see ADR-0002)
+        # PLAN section 4: generator and differ only see the core types and rules.
         pipeline:
           files: ["**/internal/generator/**", "**/internal/differ/**"]
-          allow:
-            - $gostd
-            - github.com/tuan-nguyenduc/swapsafe/internal/model
-            - github.com/tuan-nguyenduc/swapsafe/pkg
-        # PLAN section 4: rules stay extractable into their own module.
-        rules:
-          files: ["**/rules/**"]
           allow:
             - $gostd
             - github.com/tuan-nguyenduc/swapsafe/pkg
