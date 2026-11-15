@@ -8,6 +8,12 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	// Registers every ingress-nginx rule through its init functions. It
+	// belongs here, not in main: cli is the package that assembles the
+	// pipeline, and anything driving the command tree — the end-to-end
+	// suite, an embedder — needs the rules to exist.
+	_ "github.com/tuan-nguyenduc/swapsafe/rules/ingressnginx"
 )
 
 // NewRootCommand builds the swapsafe command tree.

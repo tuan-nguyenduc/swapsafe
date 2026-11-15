@@ -14,8 +14,8 @@ normalizes both answers, and reports every difference that matters — with the 
 annotation that caused it, and what to change.
 
 > **Status: pre-alpha, no release yet.** `scan`, `run` and `rules` work, against YAML manifests
-> or a live cluster. The kind-based end-to-end suite and the first release are still open.
-> Expect breaking changes.
+> or a live cluster, and the end-to-end suite runs against a real ingress-nginx and a real Envoy
+> Gateway. There is no release yet. Expect breaking changes.
 
 ## Install
 
@@ -161,6 +161,15 @@ traffic, set up mirroring, or load test. It does not replay write requests.
 ## Contributing
 
 Rules are the easy way in: one Go file and a test. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+```console
+$ make test          # unit tests, with the race detector
+$ make lint          # golangci-lint
+$ make vuln          # govulncheck
+$ hack/kind-up.sh    # kind with ingress-nginx and Envoy Gateway side by side
+$ make e2e           # run swapsafe against both and compare to test/golden/
+$ hack/kind-down.sh
+```
 
 ## License
 

@@ -1,0 +1,69 @@
+# Four routes, three of which are translated wrong on purpose. The fourth is
+# the negative case: a correct translation must produce no findings at all,
+# which is the half of the end-to-end suite that catches false positives.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ok
+  namespace: swapsafe-e2e
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: ok.e2e.test
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: backend, port: {number: 80}}}
+---
+# No HTTPRoute exists for this one at all.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: missing
+  namespace: swapsafe-e2e
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: missing.e2e.test
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: backend, port: {number: 80}}}
+---
+# nginx redirects every plain HTTP request; the HTTPRoute does not.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: redirect
+  namespace: swapsafe-e2e
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: redirect.e2e.test
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: backend, port: {number: 80}}}
+---
+# nginx rewrites /api/... to /; the HTTPRoute passes the path through.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rewrite
+  namespace: swapsafe-e2e
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: rewrite.e2e.test
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend: {service: {name: backend, port: {number: 80}}}

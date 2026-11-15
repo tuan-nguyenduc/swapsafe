@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Raised the Go floor to 1.26.11 and `golang.org/x/net` to v0.62.0, clearing six advisories
   `govulncheck` reported in the HTTP/2 stack.
 
+### Fixed
+
+- `Connection`, `Keep-Alive` and the rest of the hop-by-hop headers are now dropped before
+  comparing. ingress-nginx sends `Connection: keep-alive` where Envoy sends nothing, which made
+  every correctly translated route look broken.
+- The ingress-nginx rules are registered by `internal/cli` rather than by `main`, so anything
+  driving the command tree has them. Without this the end-to-end suite ran with no rules at all.
+
 ### Added
 
 - Repository skeleton: Go module, directory layout, Apache-2.0 license, README, `CLAUDE.md`.
@@ -24,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and global `--log-level` / `--log-format` flags backed by `log/slog`.
 - Dependabot for `gomod` and `github-actions` (PLAN section 6.3).
 - README: what swapsafe does, quickstart, the safety defaults, and the supported annotations.
+- End-to-end suite: `hack/kind-up.sh` stands up kind with ingress-nginx and Envoy Gateway serving
+  the same hostnames, `make e2e` runs swapsafe against both and compares to `test/golden/`.
+  Four fixture routes, three mistranslated on purpose and one correct.
 - `pkg/api/v1alpha1`: the core types — `RouteSpec`, `TestCase`, `Observation`, `Finding`,
   `Severity` — carrying the JSON tags that define `results.json`
   (`swapsafe.dev/v1alpha1`), with round-trip and determinism tests.

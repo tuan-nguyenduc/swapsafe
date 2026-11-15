@@ -33,6 +33,30 @@ func TestHeadersDropsNoise(t *testing.T) {
 	}
 }
 
+// Hop-by-hop headers describe the connection, not the answer. Two proxies
+// disagreeing about them is not a behaviour difference, and treating it as
+// one made every correctly translated route look broken.
+func TestHeadersDropsHopByHop(t *testing.T) {
+	t.Parallel()
+
+	in := http.Header{
+		"Connection":        {"keep-alive"},
+		"Keep-Alive":        {"timeout=5"},
+		"Proxy-Connection":  {"keep-alive"},
+		"Te":                {"trailers"},
+		"Trailer":           {"Expires"},
+		"Transfer-Encoding": {"chunked"},
+		"Upgrade":           {"websocket"},
+		"Content-Type":      {"text/html"},
+	}
+
+	got := Headers(in, request(), Options{})
+	want := http.Header{"Content-Type": {"text/html"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Headers() = %v, want %v", got, want)
+	}
+}
+
 func TestHeadersIgnoreList(t *testing.T) {
 	t.Parallel()
 

@@ -1,0 +1,60 @@
+# One backend for every fixture route. It answers any path with a body naming
+# the path it was actually given, so a rewrite that survives the migration —
+# or does not — shows up as a body difference.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: swapsafe-e2e
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend
+  namespace: swapsafe-e2e
+data:
+  default.conf: |
+    server {
+      listen 80;
+      default_type text/plain;
+      location / {
+        return 200 "path=$uri\n";
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: swapsafe-e2e
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: backend}
+  template:
+    metadata:
+      labels: {app: backend}
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.29-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d
+          readinessProbe:
+            httpGet: {path: /, port: 80}
+      volumes:
+        - name: config
+          configMap: {name: backend}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: swapsafe-e2e
+spec:
+  selector: {app: backend}
+  ports:
+    - port: 80
+      targetPort: 80

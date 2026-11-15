@@ -1,0 +1,110 @@
+[
+  {
+    "route": "missing/missing.e2e.test/",
+    "request": "-",
+    "aspect": "route",
+    "severity": "critical"
+  },
+  {
+    "route": "missing/missing.e2e.test/",
+    "request": "GET /",
+    "aspect": "body",
+    "severity": "major"
+  },
+  {
+    "route": "missing/missing.e2e.test/",
+    "request": "GET /",
+    "aspect": "header:content-type",
+    "severity": "major"
+  },
+  {
+    "route": "missing/missing.e2e.test/",
+    "request": "GET /",
+    "aspect": "status",
+    "severity": "critical"
+  },
+  {
+    "route": "missing/missing.e2e.test/",
+    "request": "GET /swapsafe-probe",
+    "aspect": "body",
+    "severity": "major"
+  },
+  {
+    "route": "missing/missing.e2e.test/",
+    "request": "GET /swapsafe-probe",
+    "aspect": "header:content-type",
+    "severity": "major"
+  },
+  {
+    "route": "missing/missing.e2e.test/",
+    "request": "GET /swapsafe-probe",
+    "aspect": "status",
+    "severity": "critical"
+  },
+  {
+    "route": "redirect/redirect.e2e.test/",
+    "request": "GET /",
+    "aspect": "body",
+    "severity": "major"
+  },
+  {
+    "route": "redirect/redirect.e2e.test/",
+    "request": "GET /",
+    "aspect": "header:content-type",
+    "severity": "minor"
+  },
+  {
+    "route": "redirect/redirect.e2e.test/",
+    "request": "GET /",
+    "aspect": "header:location",
+    "severity": "major"
+  },
+  {
+    "route": "redirect/redirect.e2e.test/",
+    "request": "GET /",
+    "aspect": "status",
+    "severity": "critical"
+  },
+  {
+    "route": "redirect/redirect.e2e.test/",
+    "request": "GET /swapsafe-probe",
+    "aspect": "body",
+    "severity": "major"
+  },
+  {
+    "route": "redirect/redirect.e2e.test/",
+    "request": "GET /swapsafe-probe",
+    "aspect": "header:content-type",
+    "severity": "minor"
+  },
+  {
+    "route": "redirect/redirect.e2e.test/",
+    "request": "GET /swapsafe-probe",
+    "aspect": "header:location",
+    "severity": "major"
+  },
+  {
+    "route": "redirect/redirect.e2e.test/",
+    "request": "GET /swapsafe-probe",
+    "aspect": "status",
+    "severity": "critical"
+  },
+  {
+    "route": "rewrite/rewrite.e2e.test/api",
+    "request": "GET /api/",
+    "aspect": "body",
+    "severity": "major"
+  },
+  {
+    "route": "rewrite/rewrite.e2e.test/api",
+    "request": "GET /api/swapsafe-probe",
+    "aspect": "body",
+    "severity": "major"
+  },
+  {
+    "route": "rewrite/rewrite.e2e.test/api",
+    "request": "GET /api",
+    "aspect": "body",
+    "severity": "major"
+  }
+]

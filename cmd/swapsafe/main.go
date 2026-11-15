@@ -7,9 +7,6 @@ import (
 	"os"
 
 	"github.com/tuan-nguyenduc/swapsafe/internal/cli"
-
-	// Registers every ingress-nginx rule through its init functions.
-	_ "github.com/tuan-nguyenduc/swapsafe/rules/ingressnginx"
 )
 
 func main() {

@@ -1,0 +1,38 @@
+# The translation. Note what is missing: no HTTPRoute for missing.e2e.test, no
+# RequestRedirect filter for redirect.e2e.test, no URLRewrite filter for
+# rewrite.e2e.test.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ok
+  namespace: swapsafe-e2e
+spec:
+  parentRefs: [{name: swapsafe}]
+  hostnames: [ok.e2e.test]
+  rules:
+    - matches: [{path: {type: PathPrefix, value: /}}]
+      backendRefs: [{name: backend, port: 80}]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: redirect
+  namespace: swapsafe-e2e
+spec:
+  parentRefs: [{name: swapsafe}]
+  hostnames: [redirect.e2e.test]
+  rules:
+    - matches: [{path: {type: PathPrefix, value: /}}]
+      backendRefs: [{name: backend, port: 80}]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: rewrite
+  namespace: swapsafe-e2e
+spec:
+  parentRefs: [{name: swapsafe}]
+  hostnames: [rewrite.e2e.test]
+  rules:
+    - matches: [{path: {type: PathPrefix, value: /api}}]
+      backendRefs: [{name: backend, port: 80}]

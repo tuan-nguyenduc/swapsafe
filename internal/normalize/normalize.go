@@ -24,6 +24,12 @@ const Redacted = "REDACTED"
 // dropHeaders are dropped before comparing: they differ on every request, or
 // on every proxy, without the behaviour differing at all. Content-Length goes
 // too, because the body is compared by hash.
+//
+// The second group is the hop-by-hop set from RFC 9110 section 7.6.1. These
+// describe the connection between client and proxy, not the answer the
+// application gave, and two proxies routinely disagree about them: the
+// end-to-end suite caught ingress-nginx sending Connection: keep-alive where
+// Envoy sends nothing at all.
 var dropHeaders = []string{
 	"Content-Length",
 	"Date",
@@ -31,6 +37,14 @@ var dropHeaders = []string{
 	"Traceparent",
 	"Via",
 	"X-Request-Id",
+
+	"Connection",
+	"Keep-Alive",
+	"Proxy-Connection",
+	"Te",
+	"Trailer",
+	"Transfer-Encoding",
+	"Upgrade",
 }
 
 // dropPrefixes drops whole families of implementation headers.
