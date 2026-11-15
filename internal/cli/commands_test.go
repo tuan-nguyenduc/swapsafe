@@ -56,14 +56,6 @@ func TestScanSendsNoRequests(t *testing.T) {
 	}
 }
 
-func TestScanNeedsInput(t *testing.T) {
-	t.Parallel()
-
-	if _, err := execute(t, "scan"); err == nil {
-		t.Fatal("scan ran with no input files")
-	}
-}
-
 func TestRunExitsTwoOnFindings(t *testing.T) {
 	t.Parallel()
 
@@ -168,5 +160,30 @@ func TestRunJSONOutput(t *testing.T) {
 	}
 	if !strings.Contains(out, `"observations"`) {
 		t.Error("json output has no observations, so it cannot be re-rendered")
+	}
+}
+
+func TestInputFlagsAreMutuallyExclusive(t *testing.T) {
+	t.Parallel()
+
+	path := manifestFile(t)
+	_, err := execute(t, "scan", "--from-cluster", "--ingress-file", path)
+	if err == nil {
+		t.Fatal("--from-cluster was accepted alongside --ingress-file")
+	}
+	if !strings.Contains(err.Error(), "from-cluster") {
+		t.Errorf("the error does not name the conflict: %v", err)
+	}
+}
+
+func TestInputNeedsASource(t *testing.T) {
+	t.Parallel()
+
+	_, err := execute(t, "scan")
+	if err == nil {
+		t.Fatal("scan ran with no source at all")
+	}
+	if !strings.Contains(err.Error(), "from-cluster") {
+		t.Errorf("the error does not mention reading from a cluster: %v", err)
 	}
 }

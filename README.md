@@ -13,9 +13,9 @@ It sends the same requests to your ingress-nginx endpoint and to your new Gatewa
 normalizes both answers, and reports every difference that matters — with the ingress-nginx
 annotation that caused it, and what to change.
 
-> **Status: pre-alpha, no release yet.** `scan`, `run` and `rules` work against YAML manifests.
-> Reading from a live cluster, the kind-based end-to-end suite and the first release are still
-> open. Expect breaking changes.
+> **Status: pre-alpha, no release yet.** `scan`, `run` and `rules` work, against YAML manifests
+> or a live cluster. The kind-based end-to-end suite and the first release are still open.
+> Expect breaking changes.
 
 ## Install
 
@@ -68,6 +68,15 @@ shop/web/shop.example.com/  HTTPRoute shop/web  baseline, nginx.ssl-redirect
 
 1 routes, nothing to flag before probing.
 ```
+
+Or read the objects straight from a cluster:
+
+```console
+$ swapsafe scan --from-cluster --namespace shop --ingress-class nginx
+```
+
+swapsafe only ever lists. A kubeconfig with `get` and `list` on Ingress and HTTPRoute is all it
+needs, and all it should be given.
 
 Then probe both endpoints:
 

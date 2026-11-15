@@ -62,5 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rule.Reporter`: an optional interface for rules whose annotation cannot be verified by
   probing, so they report what they know instead of staying silent.
 - `swapsafe rules`: lists every rule and the annotations it verifies.
+- `--from-cluster`: read Ingress and HTTPRoute objects from a live cluster, filtered by
+  `--namespace`, `--selector` and `--ingress-class`, with `--kubeconfig` and `--context`.
+  swapsafe only ever lists; `get` and `list` on Ingress and HTTPRoute is all it needs.
 - The generator now sends each distinct request once per route however many rules ask for it,
   and gives the request to the rule that knows why it is asking rather than to the baseline.

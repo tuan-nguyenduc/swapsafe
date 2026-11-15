@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -17,21 +18,39 @@ import (
 )
 
 // inputFlags are the sources of Ingress and HTTPRoute objects, shared by scan
-// and run. Reading from a cluster is M1-T3 and is not wired up yet.
+// and run: either YAML manifests or a live cluster.
 type inputFlags struct {
 	ingressFile   string
 	httpRouteFile string
+
+	fromCluster bool
+	cluster     collector.ClusterOptions
 }
 
 func (in *inputFlags) register(cmd *cobra.Command) {
 	f := cmd.Flags()
 	f.StringVar(&in.ingressFile, "ingress-file", "", "YAML manifest holding the Ingress objects")
 	f.StringVar(&in.httpRouteFile, "httproute-file", "", "YAML manifest holding the HTTPRoute objects")
+
+	f.BoolVar(&in.fromCluster, "from-cluster", false, "read the objects from a cluster instead of files")
+	f.StringVar(&in.cluster.Kubeconfig, "kubeconfig", "", "kubeconfig path (default: KUBECONFIG, then ~/.kube/config)")
+	f.StringVar(&in.cluster.Context, "context", "", "kubeconfig context to use")
+	f.StringVarP(&in.cluster.Namespace, "namespace", "n", "", "namespace to read (default: all)")
+	f.StringVarP(&in.cluster.Selector, "selector", "l", "", "label selector, as kubectl takes it")
+	f.StringVar(&in.cluster.IngressClass, "ingress-class", "", "keep only Ingresses on this class")
+
+	cmd.MarkFlagsMutuallyExclusive("from-cluster", "ingress-file")
+	cmd.MarkFlagsMutuallyExclusive("from-cluster", "httproute-file")
 }
 
 func (in *inputFlags) collect(ctx context.Context) (collector.Result, error) {
+	if in.fromCluster {
+		slog.Info("reading from the cluster", "selection", in.cluster.Describe())
+		return collector.FromCluster(ctx, in.cluster)
+	}
 	if in.ingressFile == "" && in.httpRouteFile == "" {
-		return collector.Result{}, fmt.Errorf("nothing to read: pass --ingress-file and --httproute-file")
+		return collector.Result{}, fmt.Errorf(
+			"nothing to read: pass --ingress-file and --httproute-file, or --from-cluster")
 	}
 	return collector.FromFiles(ctx, in.ingressFile, in.httpRouteFile)
 }
