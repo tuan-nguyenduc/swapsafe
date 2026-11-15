@@ -29,6 +29,7 @@ reports every difference that matters, attributed to the annotation behind it.
 - `.goreleaser.yaml` and a tag-triggered release workflow: Linux amd64 and arm64 archives with
   checksums, built reproducibly from the commit timestamp.
 - `hack/demo/`: two fake endpoints and a manifest, so swapsafe can be tried without a cluster.
+- README demo GIF, recorded from a real run by `hack/demo.tape` (vhs).
 - Repository skeleton: Go module, directory layout, Apache-2.0 license, README, `CLAUDE.md`.
 - `Makefile` with `build`, `test`, `lint`, `fmt`, `e2e`, `golden`, `snapshot` and a self-documenting `help`.
 - `.golangci.yml` enforcing the linter set and the package dependency rules from PLAN section 4.

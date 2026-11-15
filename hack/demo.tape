@@ -1,16 +1,18 @@
 # Records the README demo. Needs vhs:  brew install vhs
 #
 #   python3 hack/demo/servers.py &   # two fake endpoints on 18080 and 18081
-#   vhs hack/demo.tape               # writes docs/demo.gif
+#   vhs hack/demo.tape               # writes .github/demo.gif
 #
 # The fake endpoints stand in for ingress-nginx and a Gateway: one redirects
 # plain HTTP the way ssl-redirect does, the other forgot to.
 
-Output docs/demo.gif
+Output .github/demo.gif
 
-Set FontSize 15
-Set Width 1400
-Set Height 760
+# Wide enough that the findings table does not wrap: a report that wraps
+# reads as noise, which is the opposite of the point.
+Set FontSize 13
+Set Width 1800
+Set Height 820
 Set Padding 18
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 35ms

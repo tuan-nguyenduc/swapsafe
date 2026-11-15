@@ -13,6 +13,8 @@ It sends the same requests to your ingress-nginx endpoint and to your new Gatewa
 normalizes both answers, and reports every difference that matters — with the ingress-nginx
 annotation that caused it, and what to change.
 
+![swapsafe finding the routes a migration broke](.github/demo.gif)
+
 > **Status: pre-alpha, no release yet.** `scan`, `run` and `rules` work, against YAML manifests
 > or a live cluster, and the end-to-end suite runs against a real ingress-nginx and a real Envoy
 > Gateway. There is no release yet. Expect breaking changes.
