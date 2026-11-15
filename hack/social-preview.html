@@ -1,0 +1,41 @@
+<!-- Source for .github/social-preview.png, the card GitHub shows when the
+     repository link is pasted into Slack, Discord or a timeline.
+
+     Regenerate (1280x640, under GitHub's 1 MB limit):
+
+       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+         --headless --disable-gpu --window-size=1280,640 \
+         --screenshot=.github/social-preview.png \
+         "file://$PWD/hack/social-preview.html"
+
+     Upload it under Settings - General - Social preview; GitHub stores its
+     own copy, so committing the png here is only so it can be regenerated. -->
+<body style="margin:0;width:1280px;height:640px;background:#0b1211;overflow:hidden;
+             font-family:-apple-system,BlinkMacSystemFont,sans-serif;position:relative">
+
+  <!-- a faint trace of the two routes the mark is built from -->
+  <svg width="1280" height="640" style="position:absolute;inset:0;opacity:.07">
+    <path d="M-100 150 C 300 150 380 420 900 420 H1400" fill="none" stroke="#2DD4BF" stroke-width="56"/>
+    <path d="M-100 500 C 320 500 400 230 940 230 H1400" fill="none" stroke="#0F766E" stroke-width="56"/>
+  </svg>
+
+  <div style="position:relative;padding:76px 88px;height:488px;display:flex;flex-direction:column;justify-content:space-between">
+
+    <div>
+      <img src="../.github/logo.svg" width="96" style="display:block;margin-bottom:26px">
+      <div style="font-size:82px;font-weight:800;letter-spacing:-2.5px;color:#e6edf3;line-height:1">swapsafe</div>
+      <div style="font-size:31px;font-weight:500;color:#9fb3ad;margin-top:20px;line-height:1.45;max-width:880px">
+        Verify that your Gateway API setup reproduces<br>
+        ingress-nginx behaviour — <span style="color:#2DD4BF">before you move traffic.</span>
+      </div>
+    </div>
+
+    <div style="font-family:'SF Mono',Menlo,monospace;font-size:21px;line-height:1.75;
+                background:#0e1a18;border:1px solid #1d2f2c;border-radius:12px;padding:20px 26px;max-width:1010px">
+      <div><span style="color:#f87171">critical</span><span style="color:#5d716d">  status           </span><span style="color:#e6edf3">308</span><span style="color:#5d716d"> vs </span><span style="color:#e6edf3">200</span></div>
+      <div><span style="color:#fbbf24">major   </span><span style="color:#5d716d">  header:location  </span><span style="color:#e6edf3">https://shop.example.com/</span><span style="color:#5d716d"> vs (absent)</span></div>
+      <div style="color:#5d716d">caused by  <span style="color:#2DD4BF">nginx.ingress.kubernetes.io/ssl-redirect</span></div>
+    </div>
+
+  </div>
+</body>
