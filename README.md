@@ -24,19 +24,19 @@ annotation that caused it, and what to change.
 
 Linux, amd64 or arm64:
 
-```console
-$ VERSION=v0.1.0 ARCH=amd64
-$ curl -sSLO https://github.com/tuan-nguyenduc/swapsafe/releases/download/$VERSION/swapsafe_${VERSION#v}_linux_$ARCH.tar.gz
-$ curl -sSLO https://github.com/tuan-nguyenduc/swapsafe/releases/download/$VERSION/checksums.txt
-$ sha256sum --check checksums.txt --ignore-missing
-$ tar -xzf swapsafe_${VERSION#v}_linux_$ARCH.tar.gz swapsafe && sudo install swapsafe /usr/local/bin/
+```bash
+VERSION=v0.1.0 ARCH=amd64
+curl -sSLO https://github.com/tuan-nguyenduc/swapsafe/releases/download/$VERSION/swapsafe_${VERSION#v}_linux_$ARCH.tar.gz
+curl -sSLO https://github.com/tuan-nguyenduc/swapsafe/releases/download/$VERSION/checksums.txt
+sha256sum --check checksums.txt --ignore-missing
+tar -xzf swapsafe_${VERSION#v}_linux_$ARCH.tar.gz swapsafe && sudo install swapsafe /usr/local/bin/
 ```
 
 Or build it, on any platform Go runs on:
 
-```console
-$ git clone https://github.com/tuan-nguyenduc/swapsafe && cd swapsafe
-$ make build        # -> bin/swapsafe
+```bash
+git clone https://github.com/tuan-nguyenduc/swapsafe && cd swapsafe
+make build        # -> bin/swapsafe
 ```
 
 Go 1.26.11 or newer. macOS and Windows binaries, Homebrew and krew are not released yet; build
@@ -87,8 +87,8 @@ shop/web/shop.example.com/  HTTPRoute shop/web  baseline, nginx.ssl-redirect
 
 Or read the objects straight from a cluster:
 
-```console
-$ swapsafe scan --from-cluster --namespace shop --ingress-class nginx
+```bash
+swapsafe scan --from-cluster --namespace shop --ingress-class nginx
 ```
 
 swapsafe only ever lists. A kubeconfig with `get` and `list` on Ingress and HTTPRoute is all it
@@ -128,21 +128,22 @@ from the baseline, and that is all.
 
 Where to find them:
 
-```console
-$ # ingress-nginx
-$ kubectl -n ingress-nginx get svc ingress-nginx-controller \
+```bash
+# ingress-nginx
+kubectl -n ingress-nginx get svc ingress-nginx-controller \
     -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 
-$ # the Gateway reports its own address
-$ kubectl -n shop get gateway my-gateway -o jsonpath='{.status.addresses[0].value}'
+# the Gateway reports its own address
+kubectl -n shop get gateway my-gateway -o jsonpath='{.status.addresses[0].value}'
 ```
 
 No external address — kind, or bare metal without a load balancer — so forward the ports:
 
-```console
-$ kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 18080:80 &
-$ kubectl -n envoy-gateway-system port-forward svc/envoy-shop-my-gateway-abc123 18081:80 &
-$ swapsafe run --baseline 127.0.0.1:18080 --candidate 127.0.0.1:18081 ...
+```bash
+kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 18080:80 &
+kubectl -n envoy-gateway-system port-forward svc/envoy-shop-my-gateway-abc123 18081:80 &
+swapsafe run --baseline 127.0.0.1:18080 --candidate 127.0.0.1:18081 \
+    --from-cluster --namespace shop
 ```
 
 **Only the host and the port are used.** A host, a `host:port` or a full URL all work, but the
@@ -232,17 +233,17 @@ traffic, set up mirroring, or load test. It does not replay write requests.
 
 Rules are the easy way in: one Go file and a test. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-```console
-$ python3 hack/demo/servers.py &   # two fake endpoints, no cluster needed
-$ swapsafe run --baseline http://127.0.0.1:18080 --candidate http://127.0.0.1:18081 \
+```bash
+python3 hack/demo/servers.py &   # two fake endpoints, no cluster needed
+swapsafe run --baseline http://127.0.0.1:18080 --candidate http://127.0.0.1:18081 \
     --ingress-file hack/demo/manifests.yaml --httproute-file hack/demo/manifests.yaml
 
-$ make test          # unit tests, with the race detector
-$ make lint          # golangci-lint
-$ make vuln          # govulncheck
-$ hack/kind-up.sh    # kind with ingress-nginx and Envoy Gateway side by side
-$ make e2e           # run swapsafe against both and compare to test/golden/
-$ hack/kind-down.sh
+make test          # unit tests, with the race detector
+make lint          # golangci-lint
+make vuln          # govulncheck
+hack/kind-up.sh    # kind with ingress-nginx and Envoy Gateway side by side
+make e2e           # run swapsafe against both and compare to test/golden/
+hack/kind-down.sh
 ```
 
 ## License
