@@ -103,6 +103,9 @@ Hints:
 Exit code `0` when nothing reaches `--fail-on` (default `critical`), `1` when swapsafe could not
 finish, `2` when it finished and found something. That is the whole CI integration.
 
+The table is coloured when it is going to a terminal, and plain when it is going anywhere else —
+a pipe, a file, a CI log. `NO_COLOR=1` turns it off everywhere.
+
 ## Safe by default
 
 swapsafe is built to be pointed at production.

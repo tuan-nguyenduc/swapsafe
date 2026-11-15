@@ -16,6 +16,12 @@ reports every difference that matters, attributed to the annotation behind it.
 - Raised the Go floor to 1.26.11 and `golang.org/x/net` to v0.62.0, clearing six advisories
   `govulncheck` reported in the HTTP/2 stack.
 
+### Changed
+
+- Table cells are truncated at 32 characters rather than 48, and a route with no counterpart
+  reports `Ingress <ns>/<name>` against `no HTTPRoute`. With six columns on screen a wide one
+  wraps the row, and a wrapped row reads as noise. The full text is in the hint and the json.
+
 ### Fixed
 
 - `Connection`, `Keep-Alive` and the rest of the hop-by-hop headers are now dropped before
@@ -30,6 +36,8 @@ reports every difference that matters, attributed to the annotation behind it.
   checksums, built reproducibly from the commit timestamp.
 - `hack/demo/`: two fake endpoints and a manifest, so swapsafe can be tried without a cluster.
 - README demo GIF, recorded from a real run by `hack/demo.tape` (vhs).
+- Colour in the table output: severity by level, the absent marker dimmed, `MISSING` in red.
+  Only on a terminal, and never when `NO_COLOR` is set.
 - Repository skeleton: Go module, directory layout, Apache-2.0 license, README, `CLAUDE.md`.
 - `Makefile` with `build`, `test`, `lint`, `fmt`, `e2e`, `golden`, `snapshot` and a self-documenting `help`.
 - `.golangci.yml` enforcing the linter set and the package dependency rules from PLAN section 4.

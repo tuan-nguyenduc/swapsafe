@@ -150,17 +150,20 @@ func normalizePath(p string) string {
 
 func unmatchedFinding(route api.RouteSpec) api.Finding {
 	return api.Finding{
-		RouteID:   route.ID,
-		Severity:  api.SeverityCritical,
-		Aspect:    api.AspectRoute,
-		Baseline:  route.Source.String() + " serves " + displayHost(route) + route.Path,
-		Candidate: "no HTTPRoute matches this host and path",
+		RouteID:  route.ID,
+		Severity: api.SeverityCritical,
+		Aspect:   api.AspectRoute,
+		// Terse on purpose: the table has five other columns, and the hint
+		// below carries the whole story.
+		Baseline:  "Ingress " + route.Source.Namespace + "/" + route.Source.Name,
+		Candidate: "no HTTPRoute",
 		Attribution: []api.Cause{{
 			Object: route.Source,
 		}},
-		Hint: "No Gateway API route carries this traffic. Re-run ingress2gateway for " +
-			route.Source.String() + ", or check that the HTTPRoute is in the same namespace " +
-			"and that its hostnames and path matches cover this route.",
+		Hint: "Nothing on the Gateway side carries the traffic for " + displayHost(route) +
+			route.Path + ". Re-run ingress2gateway for " + route.Source.String() +
+			", or check that the HTTPRoute is in the same namespace and that its " +
+			"hostnames and path matches cover this route.",
 	}
 }
 

@@ -17,9 +17,6 @@ import (
 	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 )
 
-// missing is what a finding shows for a header only one endpoint sent.
-const missing = "(absent)"
-
 // DiffAll compares every test case that has a pair of observations, in test
 // case order.
 func DiffAll(cases []api.TestCase, observations map[string][]api.Observation) []api.Finding {
@@ -137,7 +134,7 @@ func headerSeverity(name, baseValue, candValue string) api.Severity {
 	if http.CanonicalHeaderKey(name) == "Location" {
 		return api.SeverityMajor
 	}
-	if baseValue == missing || candValue == missing {
+	if baseValue == api.ValueAbsent || candValue == api.ValueAbsent {
 		return api.SeverityMajor
 	}
 	return api.SeverityMinor
@@ -170,7 +167,7 @@ func headerNames(a, b http.Header) []string {
 func headerValue(h http.Header, name string) string {
 	values, ok := h[http.CanonicalHeaderKey(name)]
 	if !ok || len(values) == 0 {
-		return missing
+		return api.ValueAbsent
 	}
 	return strings.Join(values, ", ")
 }
@@ -186,7 +183,7 @@ func errorOrOK(o api.Observation) string {
 // can use, and the first bytes are enough to tell two bodies apart.
 func shortHash(sum string) string {
 	if sum == "" {
-		return missing
+		return api.ValueAbsent
 	}
 	if len(sum) > 12 {
 		return "sha256:" + sum[:12]

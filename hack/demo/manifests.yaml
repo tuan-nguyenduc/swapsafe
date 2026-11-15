@@ -1,16 +1,15 @@
-# shop/web  : translated correctly -> should pair with HTTPRoute shop/web
-# shop/admin: no HTTPRoute at all  -> critical "route" finding
-# shop/api   : paired, but the HTTPRoute drops the /v1 path -> unpaired too
+# Three routes, one of each outcome swapsafe can report.
+#
+#   ok     translated correctly        -> nothing to say
+#   admin  no HTTPRoute at all         -> critical, the traffic has nowhere to go
+#   shop   ssl-redirect was dropped    -> critical, nginx redirects and the Gateway does not
 apiVersion: networking.k8s.io/v1
 kind: Ingress
-metadata:
-  name: web
-  namespace: shop
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+metadata: {name: ok, namespace: shop}
 spec:
+  ingressClassName: nginx
   rules:
-    - host: shop.example.com
+    - host: ok.test
       http:
         paths:
           - path: /
@@ -19,12 +18,11 @@ spec:
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
-metadata:
-  name: admin
-  namespace: shop
+metadata: {name: admin, namespace: shop}
 spec:
+  ingressClassName: nginx
   rules:
-    - host: admin.example.com
+    - host: admin.test
       http:
         paths:
           - path: /
@@ -34,36 +32,37 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api
+  name: shop
   namespace: shop
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
+  ingressClassName: nginx
   rules:
-    - host: api.example.com
+    - host: shop.test
       http:
         paths:
-          - path: /v1
+          - path: /
             pathType: Prefix
-            backend: {service: {name: api, port: {number: 80}}}
+            backend: {service: {name: web, port: {number: 80}}}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
-metadata: {name: web, namespace: shop}
+metadata: {name: ok, namespace: shop}
 spec:
   parentRefs: [{name: gateway}]
-  hostnames: [shop.example.com]
+  hostnames: [ok.test]
   rules:
     - matches: [{path: {type: PathPrefix, value: /}}]
       backendRefs: [{name: web, port: 80}]
 ---
+# Translated, but the RequestRedirect filter that reproduces ssl-redirect is missing.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
-metadata: {name: api, namespace: shop}
+metadata: {name: shop, namespace: shop}
 spec:
   parentRefs: [{name: gateway}]
-  hostnames: [api.example.com]
+  hostnames: [shop.test]
   rules:
-    # The /v1 prefix was dropped in translation: this covers / instead.
     - matches: [{path: {type: PathPrefix, value: /}}]
-      backendRefs: [{name: api, port: 80}]
+      backendRefs: [{name: web, port: 80}]

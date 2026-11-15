@@ -1,9 +1,14 @@
 package report
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"os"
+	"regexp"
 	"strings"
 	"testing"
+	"text/tabwriter"
 
 	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 )
@@ -169,3 +174,82 @@ func TestTruncateKeepsTheColumnReadable(t *testing.T) {
 		t.Error("truncation is not marked")
 	}
 }
+
+// Colour is for a person at a terminal. A pipe, a file or a CI log gets
+// plain text, and so does anyone who set NO_COLOR.
+func TestNoColourWhenNotATerminal(t *testing.T) {
+	t.Parallel()
+
+	var out strings.Builder
+	err := Table(&out, results(
+		api.Finding{RouteID: "a", Severity: api.SeverityCritical, Aspect: api.AspectStatus},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "\033[") {
+		t.Errorf("escape sequences written to a non-terminal:\n%q", out.String())
+	}
+	if strings.ContainsRune(out.String(), '\xff') {
+		t.Errorf("tabwriter escape characters leaked into the output:\n%q", out.String())
+	}
+}
+
+func TestPaletteRespectsNoColor(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "out")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+
+	// Even a real file is not a terminal, so this is belt and braces; what it
+	// pins is that NO_COLOR wins before anything else is considered.
+	t.Setenv("NO_COLOR", "1")
+	if newPalette(f).on {
+		t.Error("NO_COLOR was ignored")
+	}
+}
+
+// Colour is applied after the table is laid out, so stripping it again must
+// give back exactly the plain table. Anything else means a coloured column
+// has been pushed out by the width of its own escape codes.
+func TestColourDoesNotMoveColumns(t *testing.T) {
+	t.Parallel()
+
+	var plain bytes.Buffer
+	tw := tabwriter.NewWriter(&plain, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "SEVERITY\tROUTE\tCANDIDATE")
+	_, _ = fmt.Fprintf(tw, "critical\tlong-route-id\t%s\n", api.ValueAbsent)
+	_, _ = fmt.Fprintf(tw, "info\tshort\tx\n")
+	if err := tw.Flush(); err != nil {
+		t.Fatal(err)
+	}
+
+	coloured := palette{on: true}.colorizeTable(plain.String(), severityTokens)
+	if coloured == plain.String() {
+		t.Fatal("nothing was coloured")
+	}
+	if got := stripANSI(coloured); got != plain.String() {
+		t.Errorf("colour changed the layout:\n got: %q\nwant: %q", got, plain.String())
+	}
+}
+
+func TestColourMarksWhatMatters(t *testing.T) {
+	t.Parallel()
+
+	table := "SEVERITY  ROUTE\ncritical  a\ninfo      b\n"
+	got := palette{on: true}.colorizeTable(table, severityTokens)
+
+	for _, want := range []string{ansiBold, ansiRed, ansiDim} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing attribute %q in:\n%q", want, got)
+		}
+	}
+	if !strings.Contains(palette{on: true}.colorizeScanTable("ROUTE\nx  MISSING\n"), ansiRed) {
+		t.Error("MISSING is not marked in the scan table")
+	}
+}
+
+var ansiPattern = regexp.MustCompile("\x1b\\[[0-9;]*m")
+
+func stripANSI(s string) string { return ansiPattern.ReplaceAllString(s, "") }

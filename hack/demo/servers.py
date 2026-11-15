@@ -1,42 +1,59 @@
-"""Two fake endpoints for trying swapsafe out.
+"""Two fake endpoints for trying swapsafe out, no cluster needed.
 
-  18080 = "ingress-nginx": ssl-redirect on, every plain HTTP request 301s.
-  18081 = "Gateway":       the redirect filter was forgotten, serves 200.
+  18080 stands in for ingress-nginx
+  18081 stands in for the Gateway it was translated to
 
-Run:  python3 docs/playground/servers.py
+Three hostnames, three outcomes — which is the whole point of the tool:
+
+  ok.test      both answer the same          the translation worked
+  admin.test   both answer the same          but there is no HTTPRoute at all
+  shop.test    nginx 301s, the Gateway 200s  the ssl-redirect was lost
+
+Run:  python3 hack/demo/servers.py
 """
-import http.server, threading, time
+import http.server
+import threading
+import time
+
+BODY = b"the real page\n"
 
 
-class Baseline(http.server.BaseHTTPRequestHandler):
+class Handler(http.server.BaseHTTPRequestHandler):
+    nginx = False
+
     def do_GET(self):
-        self.send_response(301)
-        self.send_header("Location", "https://" + self.headers.get("Host", "") + self.path)
-        self.send_header("Server", "nginx/1.25.3")
-        self.send_header("Content-Length", "0")
-        self.end_headers()
+        host = self.headers.get("Host", "").split(":")[0]
 
-    def log_message(self, *a):
-        pass
+        # ingress-nginx has ssl-redirect on for shop.test; the Gateway lost it.
+        if self.nginx and host == "shop.test":
+            self.send_response(301)
+            self.send_header("Location", "https://" + host + self.path)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
 
-
-class Candidate(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        body = b"the real page"
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
-        self.send_header("Server", "envoy")
-        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Server", "nginx/1.25.3" if self.nginx else "envoy")
+        self.send_header("Content-Length", str(len(BODY)))
         self.end_headers()
-        self.wfile.write(body)
+        self.wfile.write(BODY)
 
-    def log_message(self, *a):
+    def log_message(self, *args):
         pass
 
 
-for port, handler in ((18080, Baseline), (18081, Candidate)):
-    srv = http.server.HTTPServer(("127.0.0.1", port), handler)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
+class Nginx(Handler):
+    nginx = True
+
+
+class Gateway(Handler):
+    nginx = False
+
+
+for port, handler in ((18080, Nginx), (18081, Gateway)):
+    server = http.server.HTTPServer(("127.0.0.1", port), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
     print(f"listening on 127.0.0.1:{port}  ({handler.__name__})")
 
 print("ctrl-c to stop")

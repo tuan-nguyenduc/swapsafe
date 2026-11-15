@@ -4,6 +4,7 @@
 package report
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,13 @@ const (
 	FormatTable = "table"
 	FormatJSON  = "json"
 )
+
+// severityTokens lead the rows of the findings table, most severe first so a
+// prefix match never picks the shorter word.
+var severityTokens = []string{
+	string(api.SeverityCritical), string(api.SeverityMajor),
+	string(api.SeverityMinor), string(api.SeverityInfo),
+}
 
 // Formats lists every supported --output value, for help text and validation.
 func Formats() []string { return []string{FormatTable, FormatJSON} }
@@ -49,9 +57,11 @@ func JSON(w io.Writer, res api.Results) error {
 // Table writes the findings for a human: most severe first, then the hints,
 // each one printed once however many findings share it.
 func Table(w io.Writer, res api.Results) error {
+	c := newPalette(w)
+
 	if len(res.Findings) == 0 {
-		_, err := fmt.Fprintf(w, "No differences across %d routes and %d test cases.\n",
-			len(res.Routes), len(res.TestCases))
+		_, err := fmt.Fprintf(w, "%s across %d routes and %d test cases.\n",
+			c.green("No differences"), len(res.Routes), len(res.TestCases))
 		return err
 	}
 
@@ -65,7 +75,9 @@ func Table(w io.Writer, res api.Results) error {
 		requests[tc.ID] = describeRequest(tc.Request)
 	}
 
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	// The table is laid out plain and coloured afterwards: see palette.paint.
+	var table bytes.Buffer
+	tw := tabwriter.NewWriter(&table, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "SEVERITY\tROUTE\tREQUEST\tASPECT\tBASELINE\tCANDIDATE")
 	for _, f := range findings {
 		request, ok := requests[f.TestCaseID]
@@ -74,22 +86,29 @@ func Table(w io.Writer, res api.Results) error {
 			request = "-"
 		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			f.Severity, f.RouteID, request, f.Aspect, truncate(f.Baseline), truncate(f.Candidate))
+			f.Severity, f.RouteID, request, f.Aspect,
+			truncate(f.Baseline), truncate(f.Candidate))
 	}
 	if err := tw.Flush(); err != nil {
 		return fmt.Errorf("writing table: %w", err)
 	}
-
-	if _, err := fmt.Fprintf(w, "\n%s\n", summarize(findings)); err != nil {
+	if _, err := io.WriteString(w, c.colorizeTable(table.String(), severityTokens)); err != nil {
 		return err
 	}
-	return writeHints(w, findings)
+
+	if _, err := fmt.Fprintf(w, "\n%s\n", summarize(findings, c)); err != nil {
+		return err
+	}
+	return writeHints(w, findings, c)
 }
 
 // ScanTable writes what `swapsafe scan` found without sending any request:
 // the routes, where each one is meant to land, and which rules will probe it.
 func ScanTable(w io.Writer, routes []api.RouteSpec, rulesFor func(api.RouteSpec) []string, findings []api.Finding) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	c := newPalette(w)
+
+	var table bytes.Buffer
+	tw := tabwriter.NewWriter(&table, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "ROUTE\tTARGET\tRULES")
 	for _, r := range routes {
 		target := "MISSING"
@@ -101,15 +120,20 @@ func ScanTable(w io.Writer, routes []api.RouteSpec, rulesFor func(api.RouteSpec)
 	if err := tw.Flush(); err != nil {
 		return fmt.Errorf("writing table: %w", err)
 	}
+	// MISSING never leads a row here — the route id does — so it is coloured
+	// by the dedicated pass below rather than by a leading-token match.
+	if _, err := io.WriteString(w, c.colorizeScanTable(table.String())); err != nil {
+		return err
+	}
 
 	if len(findings) == 0 {
-		_, err := fmt.Fprintf(w, "\n%d routes, nothing to flag before probing.\n", len(routes))
+		_, err := fmt.Fprintf(w, "\n%d routes, %s.\n", len(routes), c.green("nothing to flag before probing"))
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "\n%d routes. %s\n", len(routes), summarize(findings)); err != nil {
+	if _, err := fmt.Fprintf(w, "\n%d routes. %s\n", len(routes), summarize(findings, c)); err != nil {
 		return err
 	}
-	return writeHints(w, findings)
+	return writeHints(w, findings, c)
 }
 
 // bySeverityThenRoute puts the findings a user must act on at the top, and
@@ -127,7 +151,7 @@ func bySeverityThenRoute(a, b api.Finding) int {
 	return strings.Compare(a.Aspect, b.Aspect)
 }
 
-func summarize(findings []api.Finding) string {
+func summarize(findings []api.Finding, c palette) string {
 	counts := map[api.Severity]int{}
 	for _, f := range findings {
 		counts[f.Severity]++
@@ -136,7 +160,7 @@ func summarize(findings []api.Finding) string {
 	var parts []string
 	for _, s := range []api.Severity{api.SeverityCritical, api.SeverityMajor, api.SeverityMinor, api.SeverityInfo} {
 		if counts[s] > 0 {
-			parts = append(parts, fmt.Sprintf("%d %s", counts[s], s))
+			parts = append(parts, fmt.Sprintf("%d %s", counts[s], c.severity(s)))
 		}
 	}
 	return fmt.Sprintf("%s: %s.", plural(len(findings), "finding"), strings.Join(parts, ", "))
@@ -144,7 +168,7 @@ func summarize(findings []api.Finding) string {
 
 // writeHints prints each distinct hint once. Repeating the same sentence
 // under forty findings is how a report stops being read.
-func writeHints(w io.Writer, findings []api.Finding) error {
+func writeHints(w io.Writer, findings []api.Finding, c palette) error {
 	var hints []string
 	for _, f := range findings {
 		if f.Hint != "" && !slices.Contains(hints, f.Hint) {
@@ -155,11 +179,11 @@ func writeHints(w io.Writer, findings []api.Finding) error {
 		return nil
 	}
 
-	if _, err := fmt.Fprintln(w, "\nHints:"); err != nil {
+	if _, err := fmt.Fprintln(w, "\n"+c.bold("Hints:")); err != nil {
 		return err
 	}
 	for i, h := range hints {
-		if _, err := fmt.Fprintf(w, "  %d. %s\n", i+1, h); err != nil {
+		if _, err := fmt.Fprintf(w, "  %s %s\n", c.dim(fmt.Sprintf("%d.", i+1)), h); err != nil {
 			return err
 		}
 	}
@@ -182,10 +206,11 @@ func plural(n int, word string) string {
 	return fmt.Sprintf("%d %ss", n, word)
 }
 
-// truncate keeps a column from swallowing the terminal. The full value is
-// always in the json output.
+// truncate keeps a column from swallowing the terminal: with six columns on
+// screen, a wide one wraps the row and a wrapped row reads as noise. The full
+// value is always in the json output.
 func truncate(s string) string {
-	const maxWidth = 48
+	const maxWidth = 32
 	if len(s) <= maxWidth {
 		return s
 	}

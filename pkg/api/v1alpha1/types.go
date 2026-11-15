@@ -48,6 +48,10 @@ func HeaderAspect(name string) string {
 	return HeaderAspectPrefix + strings.ToLower(name)
 }
 
+// ValueAbsent is what a finding shows for a side that sent nothing at all —
+// no such header, no body. The differ writes it and the report dims it.
+const ValueAbsent = "(absent)"
+
 // The two endpoints every test case is sent to.
 const (
 	EndpointBaseline  = "baseline"
