@@ -15,18 +15,32 @@ annotation that caused it, and what to change.
 
 ![swapsafe finding the routes a migration broke](.github/demo.gif)
 
-> **Status: pre-alpha, no release yet.** `scan`, `run` and `rules` work, against YAML manifests
-> or a live cluster, and the end-to-end suite runs against a real ingress-nginx and a real Envoy
-> Gateway. There is no release yet. Expect breaking changes.
+> **Status: v0.1.0, early.** `scan`, `run` and `rules` work, against YAML manifests or a live
+> cluster, and the end-to-end suite runs against a real ingress-nginx and a real Envoy Gateway.
+> Linux binaries only, and no signing or SBOM yet. The JSON output carries `apiVersion:
+> swapsafe.dev/v1alpha1` and will change before v1.
 
 ## Install
+
+Linux, amd64 or arm64:
+
+```console
+$ VERSION=v0.1.0 ARCH=amd64
+$ curl -sSLO https://github.com/tuan-nguyenduc/swapsafe/releases/download/$VERSION/swapsafe_${VERSION#v}_linux_$ARCH.tar.gz
+$ curl -sSLO https://github.com/tuan-nguyenduc/swapsafe/releases/download/$VERSION/checksums.txt
+$ sha256sum --check checksums.txt --ignore-missing
+$ tar -xzf swapsafe_${VERSION#v}_linux_$ARCH.tar.gz swapsafe && sudo install swapsafe /usr/local/bin/
+```
+
+Or build it, on any platform Go runs on:
 
 ```console
 $ git clone https://github.com/tuan-nguyenduc/swapsafe && cd swapsafe
 $ make build        # -> bin/swapsafe
 ```
 
-Go 1.26 or newer. No release binaries yet.
+Go 1.26.11 or newer. macOS and Windows binaries, Homebrew and krew are not released yet; build
+from source in the meantime.
 
 ## Quickstart
 
