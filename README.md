@@ -194,22 +194,86 @@ swapsafe is built to be pointed at production.
 
 ## How it works
 
+The idea is one request, two answers:
+
 ```
-manifests ─→ collector ─→ generator ─→ prober ─→ normalize ─→ differ ─→ report
-                 │            │          │           │          │
-            pair Ingress   ask every   send to    drop the   compare and
-            with HTTPRoute  rule what  both ends  noise      rank, then
-                            to probe                         attribute
+                                 ┌─────────────────────┐
+                                 │  --baseline         │──▶ 308
+   GET http://shop.example.com/  │  ingress-nginx      │    Location: https://shop.example.com/
+   ────────────────────────────▶ └─────────────────────┘
+   the same request, twice       ┌─────────────────────┐
+   ────────────────────────────▶ │  --candidate        │──▶ 200
+                                 │  Gateway API        │    (no Location)
+                                 └─────────────────────┘
+                                                              │
+                                                              ▼
+                                        critical  status      308 vs 200
+                                        major     location    present vs absent
+                                        caused by  nginx.ingress.kubernetes.io/ssl-redirect
 ```
 
-The rule registry is the only place that knows about annotations. It decides what to probe and
-how severe a difference is, and it supplies the hint. Adding support for an annotation is adding
-one file under `rules/ingressnginx/`.
+swapsafe connects to the two addresses you give it, but every request carries the route's own
+hostname as the `Host` header and the SNI name. The Gateway therefore routes it exactly as it
+will in production, while DNS still points at ingress-nginx.
 
-Normalization is what keeps the report trustworthy: `Date`, `Server`, `X-Request-Id`, `Via`,
-`X-Envoy-*` and friends are dropped, `Location` is resolved to an absolute canonical URL so
-`https://shop.example.com:443/login` and `/login` compare equal, and `Set-Cookie` is reduced to
-its name and behavioural attributes.
+Seven stages turn a pair of manifests into that verdict:
+
+```
+  Ingress + HTTPRoute
+  (files, or a cluster)
+          │
+          ▼
+    ┌───────────┐  pair by namespace, host and path; a route with no
+    │ collector │  HTTPRoute is already a critical finding
+    └───────────┘
+          │  []RouteSpec
+          ▼
+    ┌───────────┐  ask every rule that applies what it wants probed,
+    │ generator │  and send each distinct request only once
+    └───────────┘
+          │  []TestCase                    ┌────────────────────────┐
+          ▼                                │      rule registry     │
+    ┌───────────┐  both endpoints, in      │  one rule per nginx    │
+    │  prober   │  parallel, rate limited  │  annotation: when it   │
+    └───────────┘                          │  applies, what to      │
+          │  []Observation                 │  probe, how bad a      │
+          ▼                                │  difference is, and    │
+    ┌───────────┐  drop Date, Server,      │  what to change        │
+    │ normalize │  X-Request-Id, hop-by-   └────────────────────────┘
+    └───────────┘  hop; canonicalize            │         │
+          │        Location; redact cookies     │         │
+          ▼                                     ▼         │
+    ┌───────────┐  compare status, headers, body ◀────────┘
+    │  differ   │  and rank: critical, major, minor, info
+    └───────────┘
+          │  []Finding
+          ▼
+    ┌─────────────┐  name the annotation behind each difference
+    │ attribution │  and attach the rule's hint
+    └─────────────┘
+          │
+          ▼
+    ┌───────────┐  table for a human, json for everything else
+    │  report   │  exit 0, 1 or 2
+    └───────────┘
+```
+
+Two things carry most of the weight, and neither is the annotation list:
+
+**normalize.** Two proxies disagree about `Date`, `Server`, `X-Request-Id`, `Connection` and a
+dozen other headers on every single request. A raw diff is all noise, and a tool that cries wolf
+on a correct route gets closed after one run. Reading an annotation tells you what *should*
+happen; probing tells you what *does* — and ingress-nginx answers 308 where a `RequestRedirect`
+filter defaults to 302, which no annotation will ever tell you.
+
+**the rule registry.** It is the only place that knows about annotations: it decides what to
+probe, how severe a difference is, and what to suggest. Adding support for an annotation is
+adding one file under `rules/ingressnginx/`, and an annotation nobody has written a rule for is
+still reported — as `info`, never as silence.
+
+Package layout follows the stages, one directory each under `internal/`. The public types and
+the `Rule` interface live in `pkg/`, and a linter enforces that nothing under `pkg/` or `rules/`
+imports anything private, so rules stay extractable into their own module.
 
 ## Supported annotations
 
