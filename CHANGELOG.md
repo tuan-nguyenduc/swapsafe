@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-15
+
+### Added
+
+- macOS binaries, amd64 and arm64. The persona that runs this against their own kubeconfig is
+  on a laptop; only Windows was ruled out (PLAN section 9), and macOS went with it by mistake.
+  Not signed or notarized yet, so download with `curl` rather than a browser.
+
+### Fixed
+
+- README code blocks no longer carry a `$` prompt, which GitHub's copy button included and
+  every shell then rejected.
+
 ## [0.1.0] - 2026-11-15
 
 First release. swapsafe compares an ingress-nginx endpoint with a Gateway API endpoint and

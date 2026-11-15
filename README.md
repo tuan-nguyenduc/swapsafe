@@ -17,20 +17,27 @@ annotation that caused it, and what to change.
 
 > **Status: v0.1.0, early.** `scan`, `run` and `rules` work, against YAML manifests or a live
 > cluster, and the end-to-end suite runs against a real ingress-nginx and a real Envoy Gateway.
-> Linux binaries only, and no signing or SBOM yet. The JSON output carries `apiVersion:
+> Linux and macOS binaries, not yet signed, and no SBOM yet. The JSON output carries `apiVersion:
 > swapsafe.dev/v1alpha1` and will change before v1.
 
 ## Install
 
-Linux, amd64 or arm64:
+Linux and macOS, amd64 and arm64:
 
 ```bash
-VERSION=v0.1.0 ARCH=amd64
-curl -sSLO https://github.com/tuan-nguyenduc/swapsafe/releases/download/$VERSION/swapsafe_${VERSION#v}_linux_$ARCH.tar.gz
+VERSION=v0.1.1
+OS=$(uname -s | tr A-Z a-z)
+ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+ARCHIVE=swapsafe_${VERSION#v}_${OS}_${ARCH}.tar.gz
+
+curl -sSLO https://github.com/tuan-nguyenduc/swapsafe/releases/download/$VERSION/$ARCHIVE
 curl -sSLO https://github.com/tuan-nguyenduc/swapsafe/releases/download/$VERSION/checksums.txt
-sha256sum --check checksums.txt --ignore-missing
-tar -xzf swapsafe_${VERSION#v}_linux_$ARCH.tar.gz swapsafe && sudo install swapsafe /usr/local/bin/
+shasum -a 256 --check checksums.txt --ignore-missing
+tar -xzf $ARCHIVE swapsafe && sudo install swapsafe /usr/local/bin/
 ```
+
+On macOS, download with `curl` as above rather than through a browser: the binaries are not
+signed or notarized yet, and a browser download would be quarantined by Gatekeeper.
 
 Or build it, on any platform Go runs on:
 
@@ -39,8 +46,8 @@ git clone https://github.com/tuan-nguyenduc/swapsafe && cd swapsafe
 make build        # -> bin/swapsafe
 ```
 
-Go 1.26.11 or newer. macOS and Windows binaries, Homebrew and krew are not released yet; build
-from source in the meantime.
+Go 1.26.11 or newer. Windows, Homebrew and krew are not released yet; build from source in the
+meantime.
 
 ## Quickstart
 

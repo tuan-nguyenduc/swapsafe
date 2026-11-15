@@ -1,0 +1,2 @@
+f4c79ad64ff71d2bbb85f626e026a6ee6ee98806c4b30790cfbdf1745a03c36f  swapsafe_0.1.0_linux_amd64.tar.gz
+b46e4062359c386ac0d30541645ca22df51aba8e19552839627d0efff71a7537  swapsafe_0.1.0_linux_arm64.tar.gz

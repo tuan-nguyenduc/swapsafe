@@ -1,5 +1,7 @@
-# Release build. Linux only for v0.1 by decision (PLAN section 9): macOS and
-# Windows binaries wait until someone asks for them. macOS still runs in CI.
+# Release build. No Windows by decision (PLAN section 9): hack/ and the
+# end-to-end suite assume a POSIX shell. macOS is built because the primary
+# persona — a platform engineer running the CLI against their own kubeconfig —
+# is on a laptop. The binaries are not signed or notarized yet; that is M3-T4.
 version: 2
 
 project_name: swapsafe
@@ -15,7 +17,7 @@ builds:
     binary: swapsafe
     env:
       - CGO_ENABLED=0
-    goos: [linux]
+    goos: [linux, darwin]
     goarch: [amd64, arm64]
     flags:
       - -trimpath
