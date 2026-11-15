@@ -1,11 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="swapsafe">
   <title>swapsafe</title>
-  <!-- Two arrows pointing opposite ways, drawn as the two bars of an equals
-       sign: a swap that came out equal, which is the whole question. -->
-  <g fill="none" stroke="#0d9488" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M14 25 H45"/>
-    <path d="M38 18 L46 25 L38 32"/>
-    <path d="M50 39 H19"/>
-    <path d="M26 32 L18 39 L26 46"/>
-  </g>
+  <!-- An s, drawn as two routes that mirror each other and meet in the middle.
+       The second stroke is the first rotated 180 degrees about the centre, so
+       the symmetry is exact rather than eyeballed — which is the verdict
+       swapsafe exists to give. -->
+  <defs>
+    <path id="swapsafe-route" d="M47 19 C47 9 17 9 17 22 C17 31 32 32 32 32"
+          fill="none" stroke-width="9" stroke-linecap="round"/>
+  </defs>
+  <use href="#swapsafe-route" stroke="#0F766E"/>
+  <use href="#swapsafe-route" stroke="#2DD4BF" transform="rotate(180 32 32)"/>
 </svg>

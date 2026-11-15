@@ -1,9 +1,19 @@
-# swapsafe
+<p align="center">
+  <img src=".github/logo.png" width="84" alt="">
+</p>
 
-[![ci](https://github.com/tuan-nguyenduc/swapsafe/actions/workflows/ci.yml/badge.svg)](https://github.com/tuan-nguyenduc/swapsafe/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+<h1 align="center">swapsafe</h1>
 
-**Verify that your Gateway API setup reproduces ingress-nginx behaviour — before you move traffic.**
+<p align="center">
+  <strong>Verify that your Gateway API setup reproduces ingress-nginx behaviour —<br>
+  before you move traffic.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/tuan-nguyenduc/swapsafe/actions/workflows/ci.yml"><img src="https://github.com/tuan-nguyenduc/swapsafe/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/tuan-nguyenduc/swapsafe/releases/latest"><img src="https://img.shields.io/github/v/release/tuan-nguyenduc/swapsafe" alt="release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="license"></a>
+</p>
 
 ingress-nginx is end of life. [ingress2gateway](https://github.com/kubernetes-sigs/ingress2gateway)
 translates the configuration, and its own documentation tells you to review and fix the output by

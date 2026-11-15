@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="swapsafe">
+  <title>swapsafe</title>
+  <!-- The contained mark, for anywhere that needs a silhouette at 16px:
+       favicons, repository avatars, app tiles. -->
+  <rect width="64" height="64" rx="15" fill="#0F766E"/>
+  <defs>
+    <path id="swapsafe-route-tile" d="M45 21 C45 12 19 12 19 23 C19 31 32 32 32 32"
+          fill="none" stroke-width="8" stroke-linecap="round"/>
+  </defs>
+  <use href="#swapsafe-route-tile" stroke="#99F6E4"/>
+  <use href="#swapsafe-route-tile" stroke="#2DD4BF" transform="rotate(180 32 32)"/>
+</svg>
