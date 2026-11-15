@@ -26,9 +26,14 @@ func newRunCommand() *cobra.Command {
 		Short: "Probe both endpoints and report the differences",
 		Long: "run sends the same requests to the ingress-nginx endpoint and to the Gateway\n" +
 			"endpoint, compares the answers, and reports every difference that matters.\n\n" +
-			"It connects to the endpoint addresses but presents each route's own hostname,\n" +
-			"so a Gateway can be checked before DNS points at it. Nothing is written to any\n" +
-			"cluster, and only GET, HEAD and OPTIONS are sent.",
+			"It connects to the addresses you give it but presents each route's own\n" +
+			"hostname as the Host header and the SNI name, so a Gateway can be checked\n" +
+			"before DNS points at it. Nothing is written to any cluster, and only GET,\n" +
+			"HEAD and OPTIONS are sent.\n\n" +
+			"--baseline and --candidate take a host, a host:port, or a URL. Only the host\n" +
+			"and port are used: the scheme of each request comes from the rule that asked\n" +
+			"for it, so checking ssl-redirect sends plain HTTP to the same endpoint. With\n" +
+			"no port, http goes to 80 and https to 443.",
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -72,8 +77,8 @@ func newRunCommand() *cobra.Command {
 
 	in.register(cmd)
 	f := cmd.Flags()
-	f.StringVar(&opts.Baseline, "baseline", "", "ingress-nginx endpoint, e.g. https://203.0.113.10")
-	f.StringVar(&opts.Candidate, "candidate", "", "Gateway endpoint, e.g. https://203.0.113.20")
+	f.StringVar(&opts.Baseline, "baseline", "", "ingress-nginx address to connect to, e.g. 203.0.113.10")
+	f.StringVar(&opts.Candidate, "candidate", "", "Gateway address to connect to, e.g. 203.0.113.20")
 	f.StringSliceVar(&outputs, "output", []string{report.FormatTable},
 		"output format, repeatable: "+strings.Join(report.Formats(), ", "))
 	f.StringVar(&failOn, "fail-on", string(api.SeverityCritical),

@@ -84,8 +84,8 @@ Then probe both endpoints:
 
 ```console
 $ swapsafe run \
-    --baseline  https://203.0.113.10 \
-    --candidate https://203.0.113.20 \
+    --baseline  203.0.113.10 \
+    --candidate 203.0.113.20 \
     --ingress-file manifests.yaml --httproute-file manifests.yaml
 
 SEVERITY  ROUTE                       REQUEST     ASPECT           BASELINE                   CANDIDATE
@@ -105,6 +105,57 @@ finish, `2` when it finished and found something. That is the whole CI integrati
 
 The table is coloured when it is going to a terminal, and plain when it is going anywhere else —
 a pipe, a file, a CI log. `NO_COLOR=1` turns it off everywhere.
+
+## The two addresses
+
+`--baseline` is what is serving the traffic today. `--candidate` is what is asking to replace it.
+swapsafe never decides which one is right: it reports where the candidate answers differently
+from the baseline, and that is all.
+
+Where to find them:
+
+```console
+$ # ingress-nginx
+$ kubectl -n ingress-nginx get svc ingress-nginx-controller \
+    -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+
+$ # the Gateway reports its own address
+$ kubectl -n shop get gateway my-gateway -o jsonpath='{.status.addresses[0].value}'
+```
+
+No external address — kind, or bare metal without a load balancer — so forward the ports:
+
+```console
+$ kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 18080:80 &
+$ kubectl -n envoy-gateway-system port-forward svc/envoy-shop-my-gateway-abc123 18081:80 &
+$ swapsafe run --baseline 127.0.0.1:18080 --candidate 127.0.0.1:18081 ...
+```
+
+**Only the host and the port are used.** A host, a `host:port` or a full URL all work, but the
+scheme is ignored — and that is deliberate, not an oversight:
+
+| You write | The probe is | It connects to |
+| --- | --- | --- |
+| `203.0.113.10` | `GET http /` | `203.0.113.10:80` |
+| `203.0.113.10` | `GET https /` | `203.0.113.10:443` |
+| `https://203.0.113.10` | `GET http /` | `203.0.113.10:80` |
+| `203.0.113.10:8080` | either | `203.0.113.10:8080` |
+
+The scheme of each request comes from the rule that asked for it. Checking `ssl-redirect` means
+sending **plain HTTP** to the very endpoint you may have written `https://` in front of — that
+request is the whole test. If the flag's scheme won, the rule could not run at all.
+
+The address is only where the TCP connection goes. The request itself carries the route's own
+hostname:
+
+```
+connect to   203.0.113.20:443        the candidate's address
+Host:        shop.example.com        from the Ingress rule
+SNI:         shop.example.com        so the Gateway picks the right listener and certificate
+```
+
+That is what lets you ask the new Gateway what it would do for `shop.example.com` while DNS for
+`shop.example.com` still points at ingress-nginx.
 
 ## Safe by default
 

@@ -41,9 +41,14 @@ var safeMethods = []string{http.MethodGet, http.MethodHead, http.MethodOptions}
 // Options configures a Prober. The zero value of each numeric field means
 // "use the default".
 type Options struct {
-	// Baseline and Candidate are the addresses to probe, as URLs:
-	// https://203.0.113.10, or http://gateway.internal:8080. The host is what
-	// gets dialled; a port here overrides the one implied by the test case.
+	// Baseline and Candidate are the addresses to connect to:
+	// 203.0.113.10, gateway.internal:8080, or a full URL.
+	//
+	// Only the host and the port are used. The scheme is ignored, because the
+	// scheme of each request comes from the rule that asked for it — probing
+	// ssl-redirect means sending plain HTTP to the very endpoint you wrote
+	// https in front of. Without a port, http goes to 80 and https to 443; a
+	// port here overrides both.
 	Baseline  string
 	Candidate string
 
@@ -184,13 +189,20 @@ func newEndpoint(name, raw string, opts Options) (*endpoint, error) {
 	if raw == "" {
 		return nil, fmt.Errorf("%s endpoint is empty: pass --%s", name, name)
 	}
-	u, err := url.Parse(raw)
+	// A bare host or host:port is the natural thing to type, and url.Parse
+	// would read "203.0.113.10:8080" as a scheme.
+	parseable := raw
+	if !strings.Contains(parseable, "://") {
+		parseable = "http://" + parseable
+	}
+
+	u, err := url.Parse(parseable)
 	if err != nil {
 		return nil, fmt.Errorf("%s endpoint %q: %w", name, raw, err)
 	}
 	if u.Hostname() == "" {
-		return nil, fmt.Errorf("%s endpoint %q has no host: write it as a URL, "+
-			"for example https://203.0.113.10", name, raw)
+		return nil, fmt.Errorf("%s endpoint %q has no host: write an address, "+
+			"for example 203.0.113.10 or https://gateway.internal:8443", name, raw)
 	}
 
 	e := &endpoint{

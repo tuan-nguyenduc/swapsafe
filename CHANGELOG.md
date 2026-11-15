@@ -18,6 +18,11 @@ reports every difference that matters, attributed to the annotation behind it.
 
 ### Changed
 
+- `--baseline` and `--candidate` accept a bare host or `host:port`, not only a URL. The scheme
+  was already ignored; now it does not have to be invented. README explains why: the scheme of
+  each request comes from the rule, so checking `ssl-redirect` sends plain HTTP to an endpoint
+  written as `https://`.
+
 - Table cells are truncated at 32 characters rather than 48, and a route with no counterpart
   reports `Ingress <ns>/<name>` against `no HTTPRoute`. With six columns on screen a wide one
   wraps the row, and a wrapped row reads as noise. The full text is in the hint and the json.

@@ -288,7 +288,9 @@ func TestNewRejectsBadEndpoints(t *testing.T) {
 	}{
 		{name: "empty baseline", candidate: "http://127.0.0.1:1"},
 		{name: "empty candidate", baseline: "http://127.0.0.1:1"},
-		{name: "no host", baseline: "http://127.0.0.1:1", candidate: "not-a-url"},
+		// A bare hostname is fine now; a path with no host is not.
+		{name: "no host", baseline: "http://127.0.0.1:1", candidate: "/just/a/path"},
+		{name: "scheme only", baseline: "http://127.0.0.1:1", candidate: "https://"},
 	}
 
 	for _, tt := range tests {
@@ -345,5 +347,53 @@ func TestDialAddrKeepsSchemePortUnlessPinned(t *testing.T) {
 				t.Errorf("dialAddr(%q) = %q, want %q", tt.addr, got, tt.want)
 			}
 		})
+	}
+}
+
+// A bare host or host:port is the natural thing to type, and it is what
+// kubectl prints.
+func TestNewAcceptsBareAddresses(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+	address := strings.TrimPrefix(srv.URL, "http://")
+
+	opts := fastOptions(address, address)
+	p := newProber(t, opts)
+
+	got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got["a"][0].Err != "" {
+		t.Errorf("a bare host:port was not usable: %q", got["a"][0].Err)
+	}
+}
+
+// The scheme on the flag is not the scheme of the request: probing
+// ssl-redirect means sending plain HTTP to an endpoint written as https.
+func TestEndpointSchemeIsIgnored(t *testing.T) {
+	t.Parallel()
+
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		atomic.AddInt32(&hits, 1)
+	}))
+	defer srv.Close()
+
+	// https in front of a plaintext test server: the port is what decides.
+	opts := fastOptions("https://"+strings.TrimPrefix(srv.URL, "http://"), srv.URL)
+	p := newProber(t, opts)
+
+	got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got["a"][0].Err != "" {
+		t.Errorf("the endpoint scheme changed how the request was sent: %q", got["a"][0].Err)
+	}
+	if atomic.LoadInt32(&hits) != 2 {
+		t.Errorf("server saw %d requests, want 2", hits)
 	}
 }
