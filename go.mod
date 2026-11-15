@@ -6,6 +6,9 @@ require (
 	github.com/spf13/cobra v1.10.2
 	k8s.io/api v0.37.2
 	k8s.io/apimachinery v0.37.2
+	// ponytail: held below v1.7, which requires Go 1.27 and would break the
+	// N-1 rule in PLAN 6.1. Unpin when Go 1.28 ships. Also ignored in
+	// .github/dependabot.yml so the bump is not proposed every week.
 	sigs.k8s.io/gateway-api v1.6.3
 	sigs.k8s.io/yaml v1.6.0
 )

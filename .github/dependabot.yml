@@ -8,6 +8,12 @@ updates:
     # Security updates bypass the cooldown.
     cooldown:
       default-days: 14
+    ignore:
+      # gateway-api v1.7.0 requires Go 1.27, which would break the N-1 rule in
+      # PLAN section 6.1 while 1.27 is the newest release. Drop this entry
+      # when Go 1.28 ships and 1.27 becomes N-1.
+      - dependency-name: sigs.k8s.io/gateway-api
+        versions: [">= 1.7"]
     commit-message:
       prefix: build
 
