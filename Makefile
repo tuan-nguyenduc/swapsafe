@@ -9,6 +9,7 @@ LDFLAGS    := -s -w \
 	-X $(PKG)/internal/cli.date=$(DATE)
 
 GOLANGCI_VERSION := v2.15.0
+GORELEASER_VERSION := v2.19.0
 
 .DEFAULT_GOAL := help
 
@@ -48,4 +49,4 @@ golden: ## Regenerate golden report fixtures (review the diff!)
 
 .PHONY: snapshot
 snapshot: ## Build a local goreleaser snapshot (no publish)
-	goreleaser release --snapshot --clean
+	go run github.com/goreleaser/goreleaser/v2@$(GORELEASER_VERSION) release --snapshot --clean

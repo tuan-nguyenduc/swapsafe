@@ -1,0 +1,69 @@
+# shop/web  : translated correctly -> should pair with HTTPRoute shop/web
+# shop/admin: no HTTPRoute at all  -> critical "route" finding
+# shop/api   : paired, but the HTTPRoute drops the /v1 path -> unpaired too
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+  namespace: shop
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  rules:
+    - host: shop.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: web, port: {number: 80}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: admin
+  namespace: shop
+spec:
+  rules:
+    - host: admin.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: admin, port: {number: 80}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  namespace: shop
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: api.example.com
+      http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend: {service: {name: api, port: {number: 80}}}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: {name: web, namespace: shop}
+spec:
+  parentRefs: [{name: gateway}]
+  hostnames: [shop.example.com]
+  rules:
+    - matches: [{path: {type: PathPrefix, value: /}}]
+      backendRefs: [{name: web, port: 80}]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: {name: api, namespace: shop}
+spec:
+  parentRefs: [{name: gateway}]
+  hostnames: [api.example.com]
+  rules:
+    # The /v1 prefix was dropped in translation: this covers / instead.
+    - matches: [{path: {type: PathPrefix, value: /}}]
+      backendRefs: [{name: api, port: 80}]

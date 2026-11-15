@@ -163,6 +163,10 @@ traffic, set up mirroring, or load test. It does not replay write requests.
 Rules are the easy way in: one Go file and a test. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```console
+$ python3 hack/demo/servers.py &   # two fake endpoints, no cluster needed
+$ swapsafe run --baseline http://127.0.0.1:18080 --candidate http://127.0.0.1:18081 \
+    --ingress-file hack/demo/manifests.yaml --httproute-file hack/demo/manifests.yaml
+
 $ make test          # unit tests, with the race detector
 $ make lint          # golangci-lint
 $ make vuln          # govulncheck

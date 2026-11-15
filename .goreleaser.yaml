@@ -1,0 +1,65 @@
+# Release build. Linux only for v0.1 by decision (PLAN section 9): macOS and
+# Windows binaries wait until someone asks for them. macOS still runs in CI.
+version: 2
+
+project_name: swapsafe
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: swapsafe
+    main: ./cmd/swapsafe
+    binary: swapsafe
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/tuan-nguyenduc/swapsafe/internal/cli.version={{ .Version }}
+      - -X github.com/tuan-nguyenduc/swapsafe/internal/cli.commit={{ .FullCommit }}
+      - -X github.com/tuan-nguyenduc/swapsafe/internal/cli.date={{ .CommitDate }}
+    # Reproducible: the build date comes from the commit, not from the clock.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    ## Verifying
+
+    Every archive is listed in `checksums.txt`:
+
+    ```console
+    $ sha256sum --check checksums.txt --ignore-missing
+    ```
+
+    Signing, SBOMs and provenance are M3-T5; this release has none of them yet.
