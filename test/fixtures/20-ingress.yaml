@@ -67,3 +67,40 @@ spec:
           - path: /api
             pathType: Prefix
             backend: {service: {name: backend, port: {number: 80}}}
+---
+# The prefix-strip idiom, translated correctly. It was reported as having no
+# HTTPRoute at all until v0.1.2, because pairing compared paths as strings.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prefix
+  namespace: swapsafe-e2e
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: prefix.e2e.test
+      http:
+        paths:
+          - path: /podinfo(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend: {service: {name: backend, port: {number: 80}}}
+---
+# A route whose body carries a request id, so the two sides can never hash the
+# same. Nothing is wrong with it, and swapsafe has to say so.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: unstable
+  namespace: swapsafe-e2e
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: unstable.e2e.test
+      http:
+        paths:
+          - path: /unstable
+            pathType: Prefix
+            backend: {service: {name: backend, port: {number: 80}}}

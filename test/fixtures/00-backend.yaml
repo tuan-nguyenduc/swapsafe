@@ -19,6 +19,11 @@ data:
       location / {
         return 200 "path=$uri\n";
       }
+      # Never answers the same thing twice, the way an application reporting a
+      # request id, an uptime or a pod name does.
+      location /unstable {
+        return 200 "path=$uri id=$request_id\n";
+      }
     }
 ---
 apiVersion: apps/v1

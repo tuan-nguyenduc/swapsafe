@@ -106,5 +106,23 @@
     "request": "GET /api",
     "aspect": "body",
     "severity": "major"
+  },
+  {
+    "route": "unstable/unstable.e2e.test/unstable",
+    "request": "GET /unstable/",
+    "aspect": "body",
+    "severity": "info"
+  },
+  {
+    "route": "unstable/unstable.e2e.test/unstable",
+    "request": "GET /unstable/swapsafe-probe",
+    "aspect": "body",
+    "severity": "info"
+  },
+  {
+    "route": "unstable/unstable.e2e.test/unstable",
+    "request": "GET /unstable",
+    "aspect": "body",
+    "severity": "info"
   }
 ]

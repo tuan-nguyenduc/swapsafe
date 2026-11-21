@@ -36,3 +36,31 @@ spec:
   rules:
     - matches: [{path: {type: PathPrefix, value: /api}}]
       backendRefs: [{name: backend, port: 80}]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: prefix
+  namespace: swapsafe-e2e
+spec:
+  parentRefs: [{name: swapsafe}]
+  hostnames: [prefix.e2e.test]
+  rules:
+    - matches: [{path: {type: PathPrefix, value: /podinfo}}]
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: {type: ReplacePrefixMatch, replacePrefixMatch: /}
+      backendRefs: [{name: backend, port: 80}]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: unstable
+  namespace: swapsafe-e2e
+spec:
+  parentRefs: [{name: swapsafe}]
+  hostnames: [unstable.e2e.test]
+  rules:
+    - matches: [{path: {type: PathPrefix, value: /unstable}}]
+      backendRefs: [{name: backend, port: 80}]

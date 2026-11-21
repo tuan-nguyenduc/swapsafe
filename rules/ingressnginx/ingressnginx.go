@@ -99,12 +99,14 @@ func scheme(r api.RouteSpec) string {
 	return "http"
 }
 
-// routePath is the route's path, defaulting to the site root.
+// routePath is the part of the route's path that can be requested.
+//
+// An Ingress path is a regular expression whenever use-regex or
+// rewrite-target is set, and "/podinfo(/|$)(.*)" is not something anyone can
+// send. Every rule here probes through this, so none of them can accidentally
+// put a pattern in a URL.
 func routePath(r api.RouteSpec) string {
-	if r.Path == "" {
-		return "/"
-	}
-	return r.Path
+	return api.LiteralPathPrefix(r.Path)
 }
 
 // subPath is a path underneath the route, used to see how each side handles

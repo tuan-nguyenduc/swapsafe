@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-21
+
+Three false positives, all found on the first run against a real cluster rather than against
+fixtures. Each one would have made a correct migration look broken.
+
 ### Fixed
 
 - An Ingress whose path is a regular expression — `use-regex` with the prefix-strip idiom,
@@ -14,9 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   several cover one route the most specific wins, the way Gateway API itself routes.
   Found running v0.1.1 against a real cluster, where it produced a `critical` finding that
   failed CI for a correct migration.
-- A regex Ingress path is no longer probed verbatim. `/podinfo(/|$)(.*)` is not a URL anyone
-  can request, so the probes 404ed on both sides and proved nothing; the literal part of the
-  path is probed instead.
+- A regex Ingress path is no longer probed verbatim by any rule. `/podinfo(/|$)(.*)` is not a
+  URL anyone can request, so the probes 404ed on both sides and proved nothing; every rule now
+  probes the literal part of the path.
 - A body that the baseline does not return twice — a counter, a timestamp, a pod name — is no
   longer reported as a `major` difference blamed on a different backend. When two bodies differ,
   the baseline is probed once more; if it disagrees with itself, the body is reported as `info`
@@ -31,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   backed by evidence rather than by static pairing alone.
 - `Observation.bodyUnstable` in the v1alpha1 schema, set when the baseline answered the same
   request with two different bodies.
+- End-to-end fixtures for the prefix-strip idiom and for a route whose body carries a request
+  id. Against a real ingress-nginx and a real Envoy Gateway, both are now silent and `info`
+  respectively; before this release the first was `critical` and the second `major`.
 
 ## [0.1.1] - 2026-11-15
 

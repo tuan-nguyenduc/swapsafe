@@ -56,24 +56,9 @@ func (u useRegex) Generate(r api.RouteSpec) []api.TestCase {
 		return nil
 	}
 	return []api.TestCase{
-		u.get(r, scheme(r), concretePath(r.Path),
+		u.get(r, scheme(r), subPath(r),
 			api.Assertion{Aspect: api.AspectStatus},
 			api.Assertion{Aspect: api.AspectBody},
 		),
 	}
-}
-
-// concretePath turns a regex path into something requestable: the literal
-// part of it, plus a probe segment the pattern is likely to match.
-//
-// ponytail: a prefix cut, not a regex solver. "/api/v([0-9]+)/users" probes
-// "/api/v/swapsafe-probe", which does not match. Generating a real witness
-// string needs a regex reverser; do that if these probes turn out to 404 on
-// both sides often enough to be useless.
-func concretePath(path string) string {
-	prefix := api.LiteralPathPrefix(path)
-	if prefix == "/" {
-		return "/" + probeSegment
-	}
-	return prefix + "/" + probeSegment
 }

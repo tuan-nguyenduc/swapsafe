@@ -2,6 +2,7 @@ package ingressnginx
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
@@ -243,25 +244,54 @@ func TestReportOnlyRulesSpeakUp(t *testing.T) {
 	}
 }
 
-func TestConcretePath(t *testing.T) {
+// Every rule probes through routePath, so none of them can put a regular
+// expression in a URL. The e2e suite caught rewrite-target doing exactly that
+// after baseline had already been fixed.
+func TestNoRuleProbesARegex(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct{ in, want string }{
-		{in: "/api/v1/(.*)", want: "/api/v1/swapsafe-probe"},
-		{in: "/shop", want: "/shop/swapsafe-probe"},
-		{in: "/", want: "/swapsafe-probe"},
-		// An empty path is the site root, and the probe still goes below it:
-		// the baseline rule already covers the root itself.
-		{in: "", want: "/swapsafe-probe"},
-		{in: "/(.*)", want: "/swapsafe-probe"},
-		{in: "/users/[0-9]+", want: "/users/swapsafe-probe"},
+	regexRoute := route(map[string]string{
+		AnnUseRegex:      "true",
+		AnnRewriteTarget: "/$2",
+		AnnSSLRedirect:   "true",
+		AnnEnableCORS:    "true",
+		AnnAppRoot:       "/app",
+	})
+	regexRoute.Path = "/podinfo(/|$)(.*)"
+
+	for _, r := range rule.All() {
+		for _, tc := range r.Generate(regexRoute) {
+			if strings.ContainsAny(tc.Request.Path, "()|$*[]") {
+				t.Errorf("%s probes %q, which is a pattern and not a path", r.ID(), tc.Request.Path)
+			}
+			if !strings.HasPrefix(tc.Request.Path, "/podinfo") && tc.Request.Path != "/" {
+				t.Errorf("%s probes %q, which is outside the route", r.ID(), tc.Request.Path)
+			}
+		}
+	}
+}
+
+func TestRoutePathAndSubPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ in, wantPath, wantSub string }{
+		{in: "/api/v1/(.*)", wantPath: "/api/v1", wantSub: "/api/v1/swapsafe-probe"},
+		{in: "/podinfo(/|$)(.*)", wantPath: "/podinfo", wantSub: "/podinfo/swapsafe-probe"},
+		{in: "/shop", wantPath: "/shop", wantSub: "/shop/swapsafe-probe"},
+		{in: "/shop/", wantPath: "/shop", wantSub: "/shop/swapsafe-probe"},
+		{in: "/", wantPath: "/", wantSub: "/swapsafe-probe"},
+		{in: "", wantPath: "/", wantSub: "/swapsafe-probe"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
 			t.Parallel()
-			if got := concretePath(tt.in); got != tt.want {
-				t.Errorf("concretePath(%q) = %q, want %q", tt.in, got, tt.want)
+			r := api.RouteSpec{Path: tt.in}
+			if got := routePath(r); got != tt.wantPath {
+				t.Errorf("routePath(%q) = %q, want %q", tt.in, got, tt.wantPath)
+			}
+			if got := subPath(r); got != tt.wantSub {
+				t.Errorf("subPath(%q) = %q, want %q", tt.in, got, tt.wantSub)
 			}
 		})
 	}
