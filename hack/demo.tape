@@ -14,8 +14,11 @@ Set FontSize 22
 # Wide enough that the findings table never wraps. A report that wraps reads
 # as noise, which is the opposite of the point.
 Set Width 1960
-Set Height 900
+Set Height 1120
 Set Padding 20
+# 24 is plenty for a terminal recording and keeps the file small enough to
+# load on a README.
+Set Framerate 24
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 28ms
 

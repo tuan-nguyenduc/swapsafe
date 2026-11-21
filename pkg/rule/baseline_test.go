@@ -50,9 +50,16 @@ func TestBaselineGenerate(t *testing.T) {
 			want:  []string{"http /checkout", "http /checkout/"},
 		},
 		{
+			// The path is canonicalized first, so the probes come out in the
+			// same order however the Ingress spelled it.
 			name:  "trailing slash is flipped off",
 			route: api.RouteSpec{ID: "shop/web/h/shop/", Path: "/shop/", PathType: api.PathTypePrefix},
-			want:  []string{"http /shop/", "http /shop", "http /shop/swapsafe-probe"},
+			want:  []string{"http /shop", "http /shop/", "http /shop/swapsafe-probe"},
+		},
+		{
+			name:  "a regex path is probed as the path part of it",
+			route: api.RouteSpec{ID: "demo/x/h/podinfo", Path: "/podinfo(/|$)(.*)", PathType: api.PathTypeImplementationSpecific},
+			want:  []string{"http /podinfo", "http /podinfo/", "http /podinfo/swapsafe-probe"},
 		},
 		{
 			name:  "empty path is treated as root",

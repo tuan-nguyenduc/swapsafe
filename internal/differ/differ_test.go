@@ -285,3 +285,88 @@ func TestUnstableBodyIsNotAFinding(t *testing.T) {
 		t.Error("a hash was reported as if the two bodies had been compared")
 	}
 }
+
+func TestConfirmRouteFindings(t *testing.T) {
+	t.Parallel()
+
+	cases := []api.TestCase{{ID: "tc1", RouteID: "r1"}, {ID: "tc2", RouteID: "r1"}}
+	missing := api.Finding{
+		RouteID: "r1", Severity: api.SeverityCritical, Aspect: api.AspectRoute,
+		Candidate: "no HTTPRoute", Hint: "static hint",
+	}
+
+	tests := []struct {
+		name         string
+		observations map[string][]api.Observation
+		want         api.Severity
+	}{
+		{
+			name: "both endpoints answer the same, so something serves it",
+			observations: map[string][]api.Observation{
+				"tc1": {obs(api.EndpointBaseline, 200, nil, "a"), obs(api.EndpointCandidate, 200, nil, "a")},
+				"tc2": {obs(api.EndpointBaseline, 404, nil, "b"), obs(api.EndpointCandidate, 404, nil, "b")},
+			},
+			want: api.SeverityInfo,
+		},
+		{
+			name: "the candidate answers differently, so the gap is real",
+			observations: map[string][]api.Observation{
+				"tc1": {obs(api.EndpointBaseline, 200, nil, "a"), obs(api.EndpointCandidate, 404, nil, "b")},
+				"tc2": {obs(api.EndpointBaseline, 200, nil, "a"), obs(api.EndpointCandidate, 200, nil, "a")},
+			},
+			want: api.SeverityCritical,
+		},
+		{
+			name:         "nothing was probed, so nothing is confirmed",
+			observations: map[string][]api.Observation{},
+			want:         api.SeverityCritical,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := ConfirmRouteFindings([]api.Finding{missing}, cases, tt.observations)
+			if len(got) != 1 {
+				t.Fatalf("got %d findings, want the finding kept", len(got))
+			}
+			if got[0].Severity != tt.want {
+				t.Errorf("severity = %q, want %q", got[0].Severity, tt.want)
+			}
+			if tt.want == api.SeverityInfo && got[0].Hint == missing.Hint {
+				t.Error("the finding was downgraded but still carries the static hint")
+			}
+		})
+	}
+}
+
+// An unstable body must not make a served route look unserved.
+func TestConfirmRouteFindingsIgnoresUnstableBodies(t *testing.T) {
+	t.Parallel()
+
+	base := obs(api.EndpointBaseline, 200, nil, "a")
+	base.BodyUnstable = true
+	cand := obs(api.EndpointCandidate, 200, nil, "b")
+	cand.BodyUnstable = true
+
+	got := ConfirmRouteFindings(
+		[]api.Finding{{RouteID: "r1", Severity: api.SeverityCritical, Aspect: api.AspectRoute}},
+		[]api.TestCase{{ID: "tc1", RouteID: "r1"}},
+		map[string][]api.Observation{"tc1": {base, cand}})
+
+	if got[0].Severity != api.SeverityInfo {
+		t.Errorf("severity = %q, want info: the statuses matched and the body was not comparable", got[0].Severity)
+	}
+}
+
+// Findings about a response are left exactly as the differ wrote them.
+func TestConfirmRouteFindingsLeavesOtherAspectsAlone(t *testing.T) {
+	t.Parallel()
+
+	status := api.Finding{RouteID: "r1", Severity: api.SeverityCritical, Aspect: api.AspectStatus}
+	got := ConfirmRouteFindings([]api.Finding{status}, nil, nil)
+	if got[0].Severity != api.SeverityCritical {
+		t.Errorf("a status finding was rewritten: %+v", got[0])
+	}
+}

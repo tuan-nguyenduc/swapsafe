@@ -7,7 +7,7 @@ Three hostnames, three outcomes — which is the whole point of the tool:
 
   ok.test      both answer the same          the translation worked
   live.test    body changes every request    nothing to compare, and swapsafe says so
-  admin.test   both answer the same          but there is no HTTPRoute at all
+  admin.test   nginx 200, the Gateway 404    no HTTPRoute was written for it
   shop.test    nginx 301s, the Gateway 200s  the ssl-redirect was lost
 
 Run:  python3 hack/demo/servers.py
@@ -26,6 +26,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         host = self.headers.get("Host", "").split(":")[0]
+
+        # No HTTPRoute was written for admin.test, so the Gateway has nothing
+        # to match and answers 404, exactly as a real one does.
+        if not self.nginx and host == "admin.test":
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
 
         # ingress-nginx has ssl-redirect on for shop.test; the Gateway lost it.
         if self.nginx and host == "shop.test":

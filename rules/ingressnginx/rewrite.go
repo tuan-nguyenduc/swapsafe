@@ -1,8 +1,6 @@
 package ingressnginx
 
 import (
-	"strings"
-
 	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
 	"github.com/tuan-nguyenduc/swapsafe/pkg/rule"
 )
@@ -65,27 +63,16 @@ func (u useRegex) Generate(r api.RouteSpec) []api.TestCase {
 	}
 }
 
-// regexMeta are the characters that make a path a pattern rather than a path.
-const regexMeta = `(.*+?[]{}^$|\`
-
-// concretePath turns a regex path into something requestable: everything up
-// to the first metacharacter, plus a probe segment the pattern is likely to
-// match.
+// concretePath turns a regex path into something requestable: the literal
+// part of it, plus a probe segment the pattern is likely to match.
 //
 // ponytail: a prefix cut, not a regex solver. "/api/v([0-9]+)/users" probes
 // "/api/v/swapsafe-probe", which does not match. Generating a real witness
 // string needs a regex reverser; do that if these probes turn out to 404 on
 // both sides often enough to be useless.
 func concretePath(path string) string {
-	cut := strings.IndexAny(path, regexMeta)
-	if cut < 0 {
-		if path == "" {
-			return "/"
-		}
-		return strings.TrimSuffix(path, "/") + "/" + probeSegment
-	}
-	prefix := strings.TrimSuffix(path[:cut], "/")
-	if prefix == "" {
+	prefix := api.LiteralPathPrefix(path)
+	if prefix == "/" {
 		return "/" + probeSegment
 	}
 	return prefix + "/" + probeSegment

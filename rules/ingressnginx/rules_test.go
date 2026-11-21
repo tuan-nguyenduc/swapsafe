@@ -250,7 +250,9 @@ func TestConcretePath(t *testing.T) {
 		{in: "/api/v1/(.*)", want: "/api/v1/swapsafe-probe"},
 		{in: "/shop", want: "/shop/swapsafe-probe"},
 		{in: "/", want: "/swapsafe-probe"},
-		{in: "", want: "/"},
+		// An empty path is the site root, and the probe still goes below it:
+		// the baseline rule already covers the root itself.
+		{in: "", want: "/swapsafe-probe"},
 		{in: "/(.*)", want: "/swapsafe-probe"},
 		{in: "/users/[0-9]+", want: "/users/swapsafe-probe"},
 	}

@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   several cover one route the most specific wins, the way Gateway API itself routes.
   Found running v0.1.1 against a real cluster, where it produced a `critical` finding that
   failed CI for a correct migration.
+- A regex Ingress path is no longer probed verbatim. `/podinfo(/|$)(.*)` is not a URL anyone
+  can request, so the probes 404ed on both sides and proved nothing; the literal part of the
+  path is probed instead.
 - A body that the baseline does not return twice — a counter, a timestamp, a pod name — is no
   longer reported as a `major` difference blamed on a different backend. When two bodies differ,
   the baseline is probed once more; if it disagrees with itself, the body is reported as `info`
@@ -22,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A "no HTTPRoute" finding is now confirmed by the probes. When both endpoints answer the route
+  identically, something on the Gateway side is serving it and the finding drops to `info`
+  saying so; when the candidate answers differently, the finding stays `critical` and is now
+  backed by evidence rather than by static pairing alone.
 - `Observation.bodyUnstable` in the v1alpha1 schema, set when the baseline answered the same
   request with two different bodies.
 

@@ -96,10 +96,9 @@ func baselineSchemes(r api.RouteSpec) []string {
 // baselinePaths returns the path variants to probe, in a stable order and
 // with no duplicates.
 func baselinePaths(r api.RouteSpec) []string {
-	path := r.Path
-	if path == "" {
-		path = "/"
-	}
+	// An Ingress path can be a regular expression, which is not something
+	// anyone can send. Probe the part of it that is a path.
+	path := api.LiteralPathPrefix(r.Path)
 
 	paths := []string{path}
 	if alt := toggleTrailingSlash(path); alt != "" {

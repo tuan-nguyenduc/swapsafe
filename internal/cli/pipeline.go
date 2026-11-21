@@ -83,6 +83,9 @@ func probe(ctx context.Context, collected collector.Result, gen generator.Result
 	// write into the collector's own backing array.
 	findings := slices.Concat(collected.Findings, gen.Findings,
 		differ.DiffAll(gen.TestCases, observations))
+	// The collector's "no HTTPRoute" verdict is static; the probes get the
+	// last word on it.
+	findings = differ.ConfirmRouteFindings(findings, gen.TestCases, observations)
 
 	res := api.NewResults(api.Metadata{
 		Version:   version,

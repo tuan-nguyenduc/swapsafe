@@ -196,3 +196,52 @@ func shortHash(sum string) string {
 	}
 	return "sha256:" + sum
 }
+
+// ConfirmRouteFindings re-reads the "no HTTPRoute" findings in the light of
+// what the probes actually saw.
+//
+// Pairing is static, and static answers can be wrong: a broader PathPrefix,
+// or an idiom the collector does not recognize, serves the route even though
+// nothing was paired with it. When both endpoints answer that route the same
+// way, the honest verdict is not critical — it is that something is serving
+// it and the user should find out what.
+func ConfirmRouteFindings(findings []api.Finding, cases []api.TestCase, observations map[string][]api.Observation) []api.Finding {
+	byRoute := make(map[string][]string, len(cases))
+	for _, tc := range cases {
+		byRoute[tc.RouteID] = append(byRoute[tc.RouteID], tc.ID)
+	}
+
+	out := make([]api.Finding, 0, len(findings))
+	for _, f := range findings {
+		if f.Aspect == api.AspectRoute && served(byRoute[f.RouteID], observations) {
+			f.Severity = api.SeverityInfo
+			f.Candidate = "served anyway, by some other route"
+			f.Hint = "No HTTPRoute could be paired with this route, but both endpoints " +
+				"answer it the same way, so something on the Gateway side is carrying " +
+				"the traffic — most likely a broader PathPrefix. Find out which " +
+				"HTTPRoute matches and confirm that is what you meant."
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+// served reports whether every probe of a route came back the same from both
+// endpoints. No probes at all means nothing was confirmed.
+func served(caseIDs []string, observations map[string][]api.Observation) bool {
+	var probed bool
+	for _, id := range caseIDs {
+		base, cand, ok := pair(observations[id])
+		if !ok {
+			continue
+		}
+		probed = true
+		if base.Err != "" || cand.Err != "" || base.Status != cand.Status {
+			return false
+		}
+		if !base.BodyUnstable && !cand.BodyUnstable && base.BodySHA256 != cand.BodySHA256 {
+			return false
+		}
+	}
+	return probed
+}
