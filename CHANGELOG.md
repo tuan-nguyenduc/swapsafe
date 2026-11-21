@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An Ingress whose path is a regular expression — `use-regex` with the prefix-strip idiom,
+  `/podinfo(/|$)(.*)` — is no longer reported as having no HTTPRoute. Pairing now compares
+  coverage rather than strings: a `PathPrefix` pairs with any route it serves, and where
+  several cover one route the most specific wins, the way Gateway API itself routes.
+  Found running v0.1.1 against a real cluster, where it produced a `critical` finding that
+  failed CI for a correct migration.
 - A body that the baseline does not return twice — a counter, a timestamp, a pod name — is no
   longer reported as a `major` difference blamed on a different backend. When two bodies differ,
   the baseline is probed once more; if it disagrees with itself, the body is reported as `info`

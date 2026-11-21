@@ -3,7 +3,6 @@ package collector
 import (
 	"context"
 	"sort"
-	"strings"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -51,9 +50,17 @@ func pair(ingresses []networkingv1.Ingress, httpRoutes []gatewayv1.HTTPRoute) Re
 }
 
 // findTarget looks for the HTTPRoute that should carry this route's traffic:
-// same namespace, a hostname covering the route's host, and a path match on
-// the route's path.
+// same namespace, a hostname covering the route's host, and a path match that
+// covers the route's path.
+//
+// Where several HTTPRoutes cover it, the most specific one wins — the longest
+// prefix — which is how Gateway API itself picks.
 func findTarget(route api.RouteSpec, httpRoutes []gatewayv1.HTTPRoute) (api.ObjectRef, bool) {
+	want := api.LiteralPathPrefix(route.Path)
+
+	best := -1
+	var ref api.ObjectRef
+
 	for _, hr := range httpRoutes {
 		if hr.Namespace != route.Source.Namespace {
 			continue
@@ -61,17 +68,24 @@ func findTarget(route api.RouteSpec, httpRoutes []gatewayv1.HTTPRoute) (api.Obje
 		if !hostnamesCover(hr.Spec.Hostnames, route.Host) {
 			continue
 		}
-		if !rulesCover(hr.Spec.Rules, route) {
+
+		specificity := rulesCoverage(hr.Spec.Rules, want)
+		if specificity < 0 {
 			continue
 		}
-		return api.ObjectRef{
+		candidate := api.ObjectRef{
 			Group:     gatewayv1.GroupName,
 			Kind:      "HTTPRoute",
 			Namespace: hr.Namespace,
 			Name:      hr.Name,
-		}, true
+		}
+		// A tie is broken by name, so two equally specific HTTPRoutes always
+		// pair the same way across runs.
+		if specificity > best || (specificity == best && candidate.Name < ref.Name) {
+			best, ref = specificity, candidate
+		}
 	}
-	return api.ObjectRef{}, false
+	return ref, best >= 0
 }
 
 // hostnamesCover reports whether an HTTPRoute serves host. An HTTPRoute with
@@ -88,34 +102,36 @@ func hostnamesCover(hostnames []gatewayv1.Hostname, host string) bool {
 	return false
 }
 
-// rulesCover reports whether any rule of an HTTPRoute matches the route's
-// path. A rule with no matches defaults to a "/" prefix, which covers
-// everything.
-func rulesCover(rules []gatewayv1.HTTPRouteRule, route api.RouteSpec) bool {
+// rulesCoverage returns the length of the longest path match that covers
+// want, or -1 when no rule covers it. The length is the specificity: between
+// an HTTPRoute matching /podinfo and one matching /, the first is the one the
+// traffic actually reaches.
+func rulesCoverage(rules []gatewayv1.HTTPRouteRule, want string) int {
+	best := -1
 	for _, rule := range rules {
 		if len(rule.Matches) == 0 {
-			return true
+			// Defaults to PathPrefix "/", which covers everything.
+			best = max(best, 1)
+			continue
 		}
 		for _, m := range rule.Matches {
-			if pathMatches(m.Path, route) {
-				return true
-			}
+			best = max(best, pathCoverage(m.Path, want))
 		}
 	}
-	return false
+	return best
 }
 
-// pathMatches compares one HTTPRoute path match against the Ingress path.
-// This is a static comparison of the configuration, not of behaviour: proving
-// the two agree is what the probing pipeline does. Here we only need to decide
-// which HTTPRoute is the counterpart of which Ingress route.
-func pathMatches(p *gatewayv1.HTTPPathMatch, route api.RouteSpec) bool {
+// pathCoverage scores one HTTPRoute path match against the Ingress path, or
+// returns -1 when it does not cover it.
+//
+// The comparison is of configuration, not of behaviour: proving the two agree
+// is what the probing pipeline does. Here we only need to decide which
+// HTTPRoute is the counterpart of which Ingress route.
+func pathCoverage(p *gatewayv1.HTTPPathMatch, want string) int {
 	if p == nil || p.Value == nil {
-		// Defaults to PathPrefix "/", which covers every path.
-		return true
+		return 1 // PathPrefix "/" by default
 	}
-	value := normalizePath(*p.Value)
-	want := normalizePath(route.Path)
+	value := api.NormalizePath(*p.Value)
 
 	matchType := gatewayv1.PathMatchPathPrefix
 	if p.Type != nil {
@@ -123,29 +139,23 @@ func pathMatches(p *gatewayv1.HTTPPathMatch, route api.RouteSpec) bool {
 	}
 
 	switch matchType {
-	case gatewayv1.PathMatchExact, gatewayv1.PathMatchPathPrefix:
-		return value == want
+	case gatewayv1.PathMatchPathPrefix:
+		if api.PathPrefixCovers(value, want) {
+			return len(value)
+		}
+	case gatewayv1.PathMatchExact:
+		if value == want {
+			return len(value)
+		}
 	case gatewayv1.PathMatchRegularExpression:
-		// ponytail: a regex path is only paired when it is written out
-		// literally. Matching regex against an ingress path properly needs the
-		// use-regex rule (M1-T9), which knows the nginx dialect.
-		return value == want
-	default:
-		return false
+		// ponytail: two regular expressions are only paired when they are
+		// written identically. Deciding whether one regex covers another needs
+		// a solver, and the probes are the cheaper answer.
+		if value == want {
+			return len(value)
+		}
 	}
-}
-
-// normalizePath drops a trailing slash so "/shop" and "/shop/" pair up. The
-// difference between the two is a behaviour question for the differ, not a
-// reason to call an HTTPRoute missing.
-func normalizePath(p string) string {
-	if p == "" {
-		return "/"
-	}
-	if len(p) > 1 {
-		return strings.TrimSuffix(p, "/")
-	}
-	return p
+	return -1
 }
 
 func unmatchedFinding(route api.RouteSpec) api.Finding {

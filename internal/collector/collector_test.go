@@ -171,7 +171,11 @@ func TestHostMatches(t *testing.T) {
 	}
 }
 
-func TestPathMatches(t *testing.T) {
+// Pairing is by coverage, not by string equality: the HTTPRoute that serves
+// a route is rarely spelled the same way as the Ingress path that produced
+// it. The prefix-strip idiom is the case that matters most, because it is the
+// most common ingress-nginx configuration there is.
+func TestPathCoverage(t *testing.T) {
 	t.Parallel()
 
 	prefix := gatewayv1.PathMatchPathPrefix
@@ -183,40 +187,89 @@ func TestPathMatches(t *testing.T) {
 		name    string
 		match   *gatewayv1.HTTPPathMatch
 		ingPath string
-		want    bool
+		want    int // -1 means not covered; otherwise the specificity
 	}{
-		{name: "nil match covers everything", ingPath: "/anything", want: true},
-		{name: "prefix equal", match: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/shop")}, ingPath: "/shop", want: true},
-		{name: "trailing slash is ignored", match: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/shop/")}, ingPath: "/shop", want: true},
-		{name: "root stays root", match: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/")}, ingPath: "/", want: true},
-		{name: "different path", match: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/shop")}, ingPath: "/admin"},
-		{name: "exact equal", match: &gatewayv1.HTTPPathMatch{Type: &exact, Value: ptr("/checkout")}, ingPath: "/checkout", want: true},
-		{name: "regex only pairs literally", match: &gatewayv1.HTTPPathMatch{Type: &regex, Value: ptr("/shop/.*")}, ingPath: "/shop"},
-		{name: "type defaults to prefix", match: &gatewayv1.HTTPPathMatch{Value: ptr("/shop")}, ingPath: "/shop", want: true},
-		{name: "empty ingress path is root", match: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/")}, ingPath: "", want: true},
+		{name: "no match covers everything", ingPath: "/anything", want: 1},
+		{name: "prefix equal", match: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/shop")}, ingPath: "/shop", want: 5},
+		{name: "trailing slash is ignored", match: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/shop/")}, ingPath: "/shop", want: 5},
+		{name: "root covers all", match: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/")}, ingPath: "/deep/path", want: 1},
+		{
+			name:    "the prefix-strip idiom pairs with its PathPrefix",
+			match:   &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/podinfo")},
+			ingPath: "/podinfo(/|$)(.*)",
+			want:    8,
+		},
+		{
+			name:    "a nested regex pairs with the prefix above it",
+			match:   &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/api")},
+			ingPath: "/api/v1(/|$)(.*)",
+			want:    4,
+		},
+		{name: "prefix must land on a segment boundary", match: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/shop")}, ingPath: "/shopping", want: -1},
+		{name: "a different branch does not cover", match: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: ptr("/admin")}, ingPath: "/shop", want: -1},
+		{name: "exact is exact", match: &gatewayv1.HTTPPathMatch{Type: &exact, Value: ptr("/checkout")}, ingPath: "/checkout", want: 9},
+		{name: "exact does not cover below it", match: &gatewayv1.HTTPPathMatch{Type: &exact, Value: ptr("/shop")}, ingPath: "/shop/cart", want: -1},
+		{name: "regex pairs only when written identically", match: &gatewayv1.HTTPPathMatch{Type: &regex, Value: ptr("/shop/.*")}, ingPath: "/shop", want: -1},
+		{name: "type defaults to prefix", match: &gatewayv1.HTTPPathMatch{Value: ptr("/shop")}, ingPath: "/shop", want: 5},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := pathMatches(tt.match, api.RouteSpec{Path: tt.ingPath})
+			got := pathCoverage(tt.match, api.LiteralPathPrefix(tt.ingPath))
 			if got != tt.want {
-				t.Errorf("pathMatches(%+v, %q) = %v, want %v", tt.match, tt.ingPath, got, tt.want)
+				t.Errorf("pathCoverage(%+v, %q) = %d, want %d", tt.match, tt.ingPath, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestRulesCoverEmptyMatches(t *testing.T) {
+// Several HTTPRoutes can cover one route. Gateway API sends the traffic to
+// the most specific, and so must the pairing.
+func TestFindTargetPicksTheMostSpecific(t *testing.T) {
+	t.Parallel()
+
+	prefix := gatewayv1.PathMatchPathPrefix
+	route := func(name, value string) gatewayv1.HTTPRoute {
+		v := value
+		return gatewayv1.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "demo"},
+			Spec: gatewayv1.HTTPRouteSpec{
+				Hostnames: []gatewayv1.Hostname{"demo.lab"},
+				Rules: []gatewayv1.HTTPRouteRule{{
+					Matches: []gatewayv1.HTTPRouteMatch{{
+						Path: &gatewayv1.HTTPPathMatch{Type: &prefix, Value: &v},
+					}},
+				}},
+			},
+		}
+	}
+
+	spec := api.RouteSpec{
+		ID:     "demo/demo-prefix/demo.lab/podinfo(/|$)(.*)",
+		Host:   "demo.lab",
+		Path:   "/podinfo(/|$)(.*)",
+		Source: api.ObjectRef{Kind: "Ingress", Namespace: "demo", Name: "demo-prefix"},
+	}
+
+	got, ok := findTarget(spec, []gatewayv1.HTTPRoute{route("catch-all", "/"), route("podinfo", "/podinfo")})
+	if !ok {
+		t.Fatal("the prefix-strip idiom was not paired at all")
+	}
+	if got.Name != "podinfo" {
+		t.Errorf("paired with %q, want podinfo: the longest prefix is the one traffic reaches", got.Name)
+	}
+}
+
+func TestRulesCoverage(t *testing.T) {
 	t.Parallel()
 
 	// A rule with no matches defaults to a "/" prefix: it covers any path.
-	rules := []gatewayv1.HTTPRouteRule{{}}
-	if !rulesCover(rules, api.RouteSpec{Path: "/deep/path"}) {
-		t.Error("a rule with no matches must cover every path")
+	if got := rulesCoverage([]gatewayv1.HTTPRouteRule{{}}, "/deep/path"); got != 1 {
+		t.Errorf("a rule with no matches scored %d, want 1", got)
 	}
-	if rulesCover(nil, api.RouteSpec{Path: "/"}) {
-		t.Error("an HTTPRoute with no rules covers nothing")
+	if got := rulesCoverage(nil, "/"); got != -1 {
+		t.Errorf("an HTTPRoute with no rules scored %d, want -1", got)
 	}
 }
 
