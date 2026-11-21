@@ -65,10 +65,11 @@ func sampleResults() Results {
 			LatencyMS:  12,
 		},
 		{
-			Endpoint:  EndpointCandidate,
-			Status:    http.StatusFound,
-			Headers:   http.Header{"Location": []string{"https://shop.example.com/checkout"}},
-			LatencyMS: 9,
+			Endpoint:     EndpointCandidate,
+			Status:       http.StatusFound,
+			Headers:      http.Header{"Location": []string{"https://shop.example.com/checkout"}},
+			LatencyMS:    9,
+			BodyUnstable: true,
 		},
 	}}
 

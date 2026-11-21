@@ -96,8 +96,14 @@ func Diff(tc api.TestCase, base, cand api.Observation) []api.Finding {
 
 	// The body is compared by hash, so a difference says "not the same bytes"
 	// and nothing more. With the status equal, that usually means the request
-	// reached a different backend.
-	if base.BodySHA256 != cand.BodySHA256 {
+	// reached a different backend — unless the baseline does not return the
+	// same bytes twice itself, in which case there is nothing to compare and
+	// saying otherwise would be a lie.
+	switch {
+	case base.BodyUnstable || cand.BodyUnstable:
+		add(api.AspectBody, api.SeverityInfo,
+			"changes between identical requests", "not compared")
+	case base.BodySHA256 != cand.BodySHA256:
 		add(api.AspectBody, api.SeverityMajor, shortHash(base.BodySHA256), shortHash(cand.BodySHA256))
 	}
 

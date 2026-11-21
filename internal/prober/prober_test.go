@@ -2,6 +2,7 @@ package prober
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -395,5 +396,92 @@ func TestEndpointSchemeIsIgnored(t *testing.T) {
 	}
 	if atomic.LoadInt32(&hits) != 2 {
 		t.Errorf("server saw %d requests, want 2", hits)
+	}
+}
+
+// counterHandler answers with a body that changes on every request, the way
+// an application that reports a request id, uptime or pod name does.
+func counterHandler(hits *atomic.Int32) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"hits": %d}`, hits.Add(1))
+	}
+}
+
+func TestUnstableBaselineBodyIsMarked(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+	baseline := httptest.NewServer(counterHandler(&hits))
+	defer baseline.Close()
+	candidate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("something else"))
+	}))
+	defer candidate.Close()
+
+	p := newProber(t, fastOptions(baseline.URL, candidate.URL))
+	got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	for _, o := range got["a"] {
+		if !o.BodyUnstable {
+			t.Errorf("%s observation was not marked unstable", o.Endpoint)
+		}
+	}
+	if hits.Load() != 2 {
+		t.Errorf("baseline saw %d requests, want 2: the original probe and one re-check", hits.Load())
+	}
+}
+
+// A real difference between two stable bodies must survive untouched.
+func TestStableBodyDifferenceIsNotMarked(t *testing.T) {
+	t.Parallel()
+
+	baseline := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("page a"))
+	}))
+	defer baseline.Close()
+	candidate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("page b"))
+	}))
+	defer candidate.Close()
+
+	p := newProber(t, fastOptions(baseline.URL, candidate.URL))
+	got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	for _, o := range got["a"] {
+		if o.BodyUnstable {
+			t.Errorf("%s observation was marked unstable though both bodies are stable", o.Endpoint)
+		}
+	}
+}
+
+// The whole point of re-probing only on a difference: a correctly migrated
+// cluster pays nothing for the check.
+func TestMatchingBodiesCostNoExtraRequests(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+	same := func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write([]byte("identical"))
+	}
+	baseline := httptest.NewServer(http.HandlerFunc(same))
+	defer baseline.Close()
+	candidate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("identical"))
+	}))
+	defer candidate.Close()
+
+	p := newProber(t, fastOptions(baseline.URL, candidate.URL))
+	cases := []api.TestCase{testCase("a", "/a"), testCase("b", "/b"), testCase("c", "/c")}
+	if _, err := p.Run(t.Context(), cases); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := hits.Load(); got != int32(len(cases)) {
+		t.Errorf("baseline saw %d requests for %d cases: the stability check is not free when bodies match", got, len(cases))
 	}
 }

@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A body that the baseline does not return twice — a counter, a timestamp, a pod name — is no
+  longer reported as a `major` difference blamed on a different backend. When two bodies differ,
+  the baseline is probed once more; if it disagrees with itself, the body is reported as `info`
+  and not compared. A run where every body matches sends no extra requests at all.
+  Found running v0.1.1 against podinfo on a real cluster.
+
+### Added
+
+- `Observation.bodyUnstable` in the v1alpha1 schema, set when the baseline answered the same
+  request with two different bodies.
+
 ## [0.1.1] - 2026-11-15
 
 ### Added

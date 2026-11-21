@@ -6,16 +6,19 @@
 Three hostnames, three outcomes — which is the whole point of the tool:
 
   ok.test      both answer the same          the translation worked
+  live.test    body changes every request    nothing to compare, and swapsafe says so
   admin.test   both answer the same          but there is no HTTPRoute at all
   shop.test    nginx 301s, the Gateway 200s  the ssl-redirect was lost
 
 Run:  python3 hack/demo/servers.py
 """
 import http.server
+import itertools
 import threading
 import time
 
 BODY = b"the real page\n"
+HITS = itertools.count(1)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -30,6 +33,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Location", "https://" + host + self.path)
             self.send_header("Content-Length", "0")
             self.end_headers()
+            return
+
+        # live.test answers with a counter, the way a real application puts a
+        # request id, a timestamp or a pod name in every response.
+        if host == "live.test":
+            body = f'{{"hits": {next(HITS)}}}\n'.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
 
         self.send_response(200)

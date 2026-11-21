@@ -168,6 +168,10 @@ type Observation struct {
 	// differ and --include-bodies was passed.
 	BodySample []byte `json:"bodySample,omitempty"`
 	LatencyMS  int64  `json:"latencyMs"`
+	// BodyUnstable means the baseline did not return the same body twice for
+	// this request, so the two sides cannot be compared on it. Plenty of
+	// applications put a counter, a timestamp or a pod name in every response.
+	BodyUnstable bool `json:"bodyUnstable,omitempty"`
 	// Err is set when the request failed outright (network, TLS, timeout).
 	Err string `json:"error,omitempty"`
 }

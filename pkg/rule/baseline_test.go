@@ -2,6 +2,7 @@ package rule
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	api "github.com/tuan-nguyenduc/swapsafe/pkg/api/v1alpha1"
@@ -144,4 +145,24 @@ func variants(cases []api.TestCase) []string {
 		out = append(out, variant(tc))
 	}
 	return out
+}
+
+// The body hint must not claim a different backend when the baseline simply
+// never answers the same thing twice.
+func TestBaselineHintSeparatesUnstableBodies(t *testing.T) {
+	t.Parallel()
+
+	r := baselineRule{}
+	unstable := r.Hint(api.Finding{Aspect: api.AspectBody, Severity: api.SeverityInfo})
+	differs := r.Hint(api.Finding{Aspect: api.AspectBody, Severity: api.SeverityMajor})
+
+	if unstable == differs {
+		t.Fatal("the same hint is given whether or not the baseline is stable")
+	}
+	if strings.Contains(unstable, "different backend") {
+		t.Errorf("an unstable body was blamed on the backend: %q", unstable)
+	}
+	if !strings.Contains(differs, "different backend") {
+		t.Errorf("a real body difference lost its hint: %q", differs)
+	}
 }

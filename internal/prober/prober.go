@@ -153,6 +153,8 @@ func (p *Prober) Run(ctx context.Context, cases []api.TestCase) (map[string][]ap
 		return nil, err
 	}
 
+	p.markUnstableBodies(ctx, cases, out)
+
 	// Goroutines finish in whatever order the network allows; the report must
 	// not depend on it.
 	for id := range out {
@@ -161,6 +163,54 @@ func (p *Prober) Run(ctx context.Context, cases []api.TestCase) (map[string][]ap
 		})
 	}
 	return out, nil
+}
+
+// markUnstableBodies re-probes the baseline for the requests whose bodies
+// came back different, and marks the ones where the baseline does not even
+// agree with itself.
+//
+// Only those requests: a body that already matched needs no second opinion,
+// so a run against a correctly migrated cluster sends not one extra request.
+// A body that differs is either a real finding or an application that puts a
+// counter in every response, and one more request tells them apart.
+func (p *Prober) markUnstableBodies(ctx context.Context, cases []api.TestCase, out map[string][]api.Observation) {
+	baseline := p.endpoints[0]
+
+	for _, tc := range cases {
+		if ctx.Err() != nil {
+			return
+		}
+
+		obs := out[tc.ID]
+		if len(obs) != 2 || !bodiesDiffer(obs) {
+			continue
+		}
+
+		second := baseline.probe(ctx, tc, p.opts)
+		if second.Err != "" || second.BodySHA256 == bodyOf(obs, api.EndpointBaseline) {
+			continue
+		}
+		for i := range obs {
+			obs[i].BodyUnstable = true
+		}
+	}
+}
+
+func bodiesDiffer(obs []api.Observation) bool {
+	first, second := obs[0], obs[1]
+	if first.Err != "" || second.Err != "" {
+		return false
+	}
+	return first.BodySHA256 != second.BodySHA256
+}
+
+func bodyOf(obs []api.Observation, endpoint string) string {
+	for _, o := range obs {
+		if o.Endpoint == endpoint {
+			return o.BodySHA256
+		}
+	}
+	return ""
 }
 
 // checkMethods refuses anything that could change state unless the user asked

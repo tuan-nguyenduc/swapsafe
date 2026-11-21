@@ -260,3 +260,28 @@ func TestDiffIsDeterministic(t *testing.T) {
 		}
 	}
 }
+
+// An application that puts a counter in every response is not a migration
+// problem, and calling it one is how a tool loses its reader.
+func TestUnstableBodyIsNotAFinding(t *testing.T) {
+	t.Parallel()
+
+	base := obs(api.EndpointBaseline, 200, nil, "aaaa")
+	base.BodyUnstable = true
+	cand := obs(api.EndpointCandidate, 200, nil, "bbbb")
+	cand.BodyUnstable = true
+
+	got := Diff(testCase(), base, cand)
+	if len(got) != 1 {
+		t.Fatalf("got %d findings, want 1: %+v", len(got), got)
+	}
+	if got[0].Aspect != api.AspectBody {
+		t.Errorf("aspect = %q, want %q", got[0].Aspect, api.AspectBody)
+	}
+	if got[0].Severity != api.SeverityInfo {
+		t.Errorf("severity = %q, want info: there was nothing to compare", got[0].Severity)
+	}
+	if got[0].Candidate == shortHash("bbbb") {
+		t.Error("a hash was reported as if the two bodies had been compared")
+	}
+}

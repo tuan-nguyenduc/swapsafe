@@ -71,6 +71,10 @@ func (baselineRule) Hint(f api.Finding) string {
 	case f.Aspect == "header:location":
 		return "Only one side redirects, or they redirect elsewhere. Look for a " +
 			"RequestRedirect or URLRewrite filter on the HTTPRoute rule."
+	case f.Aspect == api.AspectBody && f.Severity == api.SeverityInfo:
+		return "The baseline does not return the same body twice for this request, so the " +
+			"two sides cannot be compared on it. That is normal for a response carrying a " +
+			"counter, a timestamp or a pod name."
 	case strings.HasPrefix(f.Aspect, "body"):
 		return "Same status, different body: the request is most likely reaching a " +
 			"different backend. Compare the HTTPRoute backendRefs with the Ingress backend."
