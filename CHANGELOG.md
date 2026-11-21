@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-21
+
+Body comparison, after a second round of findings from the same lab cluster. A response that
+carries a counter or an uptime can now be compared on everything else, instead of being blamed
+on the migration or given up on entirely.
+
 ### Fixed
 
 - The body stability check no longer flaps. It took two baseline samples and called the body

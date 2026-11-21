@@ -35,7 +35,7 @@ annotation that caused it, and what to change.
 Linux and macOS, amd64 and arm64:
 
 ```bash
-VERSION=v0.1.2
+VERSION=v0.1.3
 OS=$(uname -s | tr A-Z a-z)
 ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
 ARCHIVE=swapsafe_${VERSION#v}_${OS}_${ARCH}.tar.gz
