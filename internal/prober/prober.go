@@ -57,6 +57,12 @@ type Options struct {
 	Timeout            time.Duration
 	InsecureSkipVerify bool
 	AllowUnsafeMethods bool
+	// CheckBodies samples the baseline a second time for every request, not
+	// only for the ones whose bodies differ, so a body that is not stable is
+	// always reported as such. It costs one extra request per probe against
+	// the baseline, which is why it is off by default: a run pointed at
+	// production should not pay for a warning.
+	CheckBodies bool
 	// IncludeBodies keeps up to MaxBodySample bytes of each response body.
 	// Off by default: a body can hold anything, and results.json is a file
 	// people paste into tickets (PLAN section 6.3).
@@ -191,7 +197,15 @@ func (p *Prober) reconcileBodies(ctx context.Context, cases []api.TestCase, out 
 		}
 
 		obs := out[tc.ID]
-		if len(obs) != 2 || !bodiesDiffer(obs) {
+		if len(obs) != 2 {
+			continue
+		}
+		if !bodiesDiffer(obs) {
+			// The two endpoints answered the same. With --check-bodies, find
+			// out whether that was agreement or luck.
+			if p.opts.CheckBodies && !baselineRepeats(ctx, baseline, tc, p.opts, obs) {
+				setBoth(obs, func(o *api.Observation) { o.BodyUnstable = true })
+			}
 			continue
 		}
 
@@ -238,6 +252,22 @@ func (p *Prober) reconcileBodies(ctx context.Context, cases []api.TestCase, out 
 			}
 		}
 	}
+}
+
+// baselineRepeats reports whether the baseline answers this request with the
+// same body every time. A false here means the two endpoints matching was a
+// coincidence, not a comparison.
+//
+// The fresh sample is compared against the one taken during the run, which is
+// older by however long the run took. This is sampling, not proof: a field
+// that changes more slowly than that gap can still look stable. A second
+// fresh sample was tried and measured to add nothing, so it is not taken.
+func baselineRepeats(ctx context.Context, baseline *endpoint, tc api.TestCase, opts Options, obs []api.Observation) bool {
+	again := baseline.sample(ctx, tc, opts, false)
+	if again.obs.Err != "" {
+		return true // nothing was learned, so claim nothing
+	}
+	return again.obs.BodySHA256 == bodyOf(obs, api.EndpointBaseline)
 }
 
 func setBoth(obs []api.Observation, f func(*api.Observation)) {

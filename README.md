@@ -198,6 +198,10 @@ swapsafe is built to be pointed at production.
 - **Gentle.** 20 requests per second per endpoint and 8 in flight by default.
 - **Quiet about secrets.** Response bodies are hashed, not kept, unless you pass
   `--include-bodies`. Cookie values and credential headers are redacted, always.
+- **Honest about what it did not check.** An application that puts a counter or a pod name in
+  every response cannot be compared on its body. swapsafe notices and says so rather than
+  blaming your migration; `--check-bodies` makes it look for that on every request, at one
+  extra request each.
 - **Works before DNS moves.** It connects to the endpoint address you give it while presenting
   each route's own hostname as the Host header and the SNI name, so the Gateway routes the
   request as it will in production.

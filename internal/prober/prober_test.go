@@ -574,3 +574,77 @@ func TestRepeatedRunsAgreeOnAVolatileBody(t *testing.T) {
 		}
 	}
 }
+
+// Two endpoints can answer the same body by coincidence when the body is not
+// stable. Without --check-bodies that coincidence passes silently, which is
+// the cheap default; with it, the user is told.
+func TestCheckBodiesFindsACoincidence(t *testing.T) {
+	t.Parallel()
+
+	// Independent counters, both starting at one: the first request to each
+	// endpoint returns the same body, the second does not.
+	newServer := func() *httptest.Server {
+		var n atomic.Int32
+		return httptest.NewServer(jsonHandler("home", &n))
+	}
+
+	for _, tt := range []struct {
+		name                string
+		check, wantUnstable bool
+	}{
+		{name: "off by default", check: false, wantUnstable: false},
+		{name: "on when asked", check: true, wantUnstable: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			baseline, candidate := newServer(), newServer()
+			defer baseline.Close()
+			defer candidate.Close()
+
+			opts := fastOptions(baseline.URL, candidate.URL)
+			opts.CheckBodies = tt.check
+			p := newProber(t, opts)
+
+			got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			if got["a"][0].BodySHA256 != got["a"][1].BodySHA256 {
+				t.Fatal("the two endpoints did not answer the same, so there is no coincidence to catch")
+			}
+			if got["a"][0].BodyUnstable != tt.wantUnstable {
+				t.Errorf("BodyUnstable = %v, want %v", got["a"][0].BodyUnstable, tt.wantUnstable)
+			}
+		})
+	}
+}
+
+// With the check on, the same unstable body gives the same verdict every run.
+func TestCheckBodiesIsDeterministic(t *testing.T) {
+	t.Parallel()
+
+	for i := range 20 {
+		var baseN, candN atomic.Int32
+		baseline := httptest.NewServer(jsonHandler("home", &baseN))
+		candidate := httptest.NewServer(jsonHandler("home", &candN))
+
+		opts := fastOptions(baseline.URL, candidate.URL)
+		opts.CheckBodies = true
+		p, err := New(opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+		p.Close()
+		baseline.Close()
+		candidate.Close()
+		if err != nil {
+			t.Fatalf("run %d: %v", i, err)
+		}
+		if !got["a"][0].BodyUnstable {
+			t.Fatalf("run %d did not report the body as unstable", i)
+		}
+	}
+}

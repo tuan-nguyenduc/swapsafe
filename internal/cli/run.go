@@ -89,6 +89,8 @@ func newRunCommand() *cobra.Command {
 	f.BoolVar(&opts.InsecureSkipVerify, "insecure-skip-verify", false, "do not verify TLS certificates")
 	f.BoolVar(&opts.AllowUnsafeMethods, "allow-unsafe-methods", false,
 		"send methods that can change state on a live system")
+	f.BoolVar(&opts.CheckBodies, "check-bodies", false,
+		"probe the baseline twice per request to find bodies that are not stable, at one extra request each")
 	f.BoolVar(&opts.IncludeBodies, "include-bodies", false,
 		"keep up to 4 KiB of each response body in the report")
 

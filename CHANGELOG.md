@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--check-bodies` samples the baseline again for every request, not only for the ones whose
+  bodies differ, so a body that is not stable is reported as such even when the two endpoints
+  happened to answer the same. Off by default: it costs one extra request per probe against the
+  baseline, and a run pointed at production should not pay for a warning.
 - JSON bodies are compared field by field. The fields the baseline changes on its own are left
   out by name and everything else is still compared, so a counter no longer hides a real
   difference elsewhere in the same document. `Observation.bodyIgnoredFields` records what was
