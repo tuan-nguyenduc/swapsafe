@@ -104,11 +104,13 @@ func TestGenerate(t *testing.T) {
 			annotations: map[string]string{AnnAppRoot: ""},
 		},
 		{
-			name:        "rewrite-target probes under the route",
+			// Both the path that the rewrite turns into the backend root,
+			// where a real page lives, and one level below it.
+			name:        "rewrite-target probes the route and under it",
 			ruleID:      "nginx.rewrite-target",
 			annotations: map[string]string{AnnRewriteTarget: "/"},
 			path:        "/shop",
-			want:        []string{"GET http /shop/swapsafe-probe"},
+			want:        []string{"GET http /shop", "GET http /shop/swapsafe-probe"},
 		},
 		{
 			name:        "use-regex probes a concrete path",

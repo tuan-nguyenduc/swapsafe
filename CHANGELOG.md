@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The body stability check no longer flaps. It took two baseline samples and called the body
+  stable if they matched, so a field that moves slowly — a goroutine count, an uptime — slipped
+  through and the same cluster reported a `major` body difference on some runs and not others.
+  There are now three samples across two time scales, and the candidate probe sits between two
+  of them.
+- `rewrite-target` also probes the route path itself, which a prefix-stripping rewrite turns
+  into the backend root. Probing only below the route landed on a path that does not exist,
+  where many backends answer the same 404 whatever the rewrite did.
+
+### Added
+
+- JSON bodies are compared field by field. The fields the baseline changes on its own are left
+  out by name and everything else is still compared, so a counter no longer hides a real
+  difference elsewhere in the same document. `Observation.bodyIgnoredFields` records what was
+  left out. Non-JSON bodies still fall back to being reported as not comparable.
+
 ## [0.1.2] - 2026-11-21
 
 Three false positives, all found on the first run against a real cluster rather than against

@@ -160,10 +160,16 @@ type TestCase struct {
 
 // Observation is one endpoint's response to a test case, after normalization.
 type Observation struct {
-	Endpoint   string      `json:"endpoint"` // EndpointBaseline or EndpointCandidate
-	Status     int         `json:"status"`
-	Headers    http.Header `json:"headers,omitempty"`
-	BodySHA256 string      `json:"bodySha256,omitempty"`
+	Endpoint string      `json:"endpoint"` // EndpointBaseline or EndpointCandidate
+	Status   int         `json:"status"`
+	Headers  http.Header `json:"headers,omitempty"`
+	// BodySHA256 is the digest the two endpoints were compared on. It is the
+	// digest of the body, unless fields had to be excluded to compare at all,
+	// in which case BodyIgnoredFields names them.
+	BodySHA256 string `json:"bodySha256,omitempty"`
+	// BodyIgnoredFields are the JSON paths left out of the comparison because
+	// the baseline changed them on its own between two samples.
+	BodyIgnoredFields []string `json:"bodyIgnoredFields,omitempty"`
 	// BodySample holds at most 4 KiB and is only populated when the endpoints
 	// differ and --include-bodies was passed.
 	BodySample []byte `json:"bodySample,omitempty"`

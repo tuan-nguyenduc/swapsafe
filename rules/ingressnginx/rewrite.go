@@ -39,11 +39,18 @@ func (rw rewriteTarget) Generate(r api.RouteSpec) []api.TestCase {
 	if value(r, AnnRewriteTarget) == "" {
 		return nil
 	}
+	expect := []api.Assertion{
+		{Aspect: api.AspectStatus},
+		{Aspect: api.AspectBody},
+	}
 	return []api.TestCase{
-		rw.get(r, scheme(r), subPath(r),
-			api.Assertion{Aspect: api.AspectStatus},
-			api.Assertion{Aspect: api.AspectBody},
-		),
+		// The route path itself, which a prefix-stripping rewrite turns into
+		// the backend root — a page that exists, so a wrong rewrite shows up
+		// as a different body instead of as two identical 404s.
+		rw.get(r, scheme(r), routePath(r), expect...),
+		// And one level below it, where the captured part of the path is
+		// what the backend receives.
+		rw.get(r, scheme(r), subPath(r), expect...),
 	}
 }
 

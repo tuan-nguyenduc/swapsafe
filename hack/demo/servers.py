@@ -6,19 +6,17 @@
 Three hostnames, three outcomes — which is the whole point of the tool:
 
   ok.test      both answer the same          the translation worked
-  live.test    body changes every request    nothing to compare, and swapsafe says so
+  live.test    one field moves every 200 ms   that field is ignored, the rest compared
   admin.test   nginx 200, the Gateway 404    no HTTPRoute was written for it
   shop.test    nginx 301s, the Gateway 200s  the ssl-redirect was lost
 
 Run:  python3 hack/demo/servers.py
 """
 import http.server
-import itertools
 import threading
 import time
 
 BODY = b"the real page\n"
-HITS = itertools.count(1)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -46,7 +44,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # live.test answers with a counter, the way a real application puts a
         # request id, a timestamp or a pod name in every response.
         if host == "live.test":
-            body = f'{{"hits": {next(HITS)}}}\n'.encode()
+            # Changes every 200 ms rather than on every request: two samples
+            # taken back to back see the same value, which is what made the
+            # stability check flaky before v0.1.3.
+            body = f'{{"page": "live", "uptime": {int(time.time() * 5)}}}\n'.encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))

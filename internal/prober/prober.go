@@ -153,7 +153,7 @@ func (p *Prober) Run(ctx context.Context, cases []api.TestCase) (map[string][]ap
 		return nil, err
 	}
 
-	p.markUnstableBodies(ctx, cases, out)
+	p.reconcileBodies(ctx, cases, out)
 
 	// Goroutines finish in whatever order the network allows; the report must
 	// not depend on it.
@@ -165,16 +165,25 @@ func (p *Prober) Run(ctx context.Context, cases []api.TestCase) (map[string][]ap
 	return out, nil
 }
 
-// markUnstableBodies re-probes the baseline for the requests whose bodies
-// came back different, and marks the ones where the baseline does not even
-// agree with itself.
+// reconcileBodies decides what a body difference actually means.
 //
-// Only those requests: a body that already matched needs no second opinion,
-// so a run against a correctly migrated cluster sends not one extra request.
-// A body that differs is either a real finding or an application that puts a
-// counter in every response, and one more request tells them apart.
-func (p *Prober) markUnstableBodies(ctx context.Context, cases []api.TestCase, out map[string][]api.Observation) {
-	baseline := p.endpoints[0]
+// A difference is either a real one or an application that never answers the
+// same thing twice, and one request cannot tell them apart. So for the cases
+// that differ — only those, a run where every body matches pays nothing — the
+// baseline is sampled again twice and the candidate once.
+//
+// The two new baseline samples are taken back to back, and the first one is
+// compared against the sample from the main run, which is seconds older. A
+// field that moves quickly is caught by the first comparison and a field that
+// moves slowly by the second; one pair of samples catches only one of them,
+// which is why this used to be flaky.
+//
+// When the bodies are JSON, the fields the baseline changed by itself are
+// excluded and the rest is still compared, so a real difference in another
+// field is not lost. When they are not, the body is marked unstable and left
+// out of the comparison entirely.
+func (p *Prober) reconcileBodies(ctx context.Context, cases []api.TestCase, out map[string][]api.Observation) {
+	baseline, candidate := p.endpoints[0], p.endpoints[1]
 
 	for _, tc := range cases {
 		if ctx.Err() != nil {
@@ -186,31 +195,55 @@ func (p *Prober) markUnstableBodies(ctx context.Context, cases []api.TestCase, o
 			continue
 		}
 
-		second := baseline.probe(ctx, tc, p.opts)
-		if second.Err != "" || second.BodySHA256 == bodyOf(obs, api.EndpointBaseline) {
+		// The candidate goes between the two baseline samples, so the window
+		// they bracket is as wide as the rate limiter allows rather than as
+		// narrow as two calls in a row.
+		first := baseline.sample(ctx, tc, p.opts, true)
+		cand := candidate.sample(ctx, tc, p.opts, true)
+		second := baseline.sample(ctx, tc, p.opts, true)
+		if first.obs.Err != "" || second.obs.Err != "" || cand.obs.Err != "" {
 			continue
 		}
+
+		drifted := first.obs.BodySHA256 != second.obs.BodySHA256 ||
+			first.obs.BodySHA256 != bodyOf(obs, api.EndpointBaseline)
+		if !drifted {
+			// The baseline answered the same three times, seconds apart. The
+			// difference is the candidate's.
+			continue
+		}
+
+		// Fields the baseline moved on its own, across the window that holds
+		// the candidate probe. When the two samples happen to agree there is
+		// nothing to name, and the body is simply left out below.
+		paths, ok := volatilePaths(first.body, second.body)
+		if ok && len(paths) == 0 {
+			setBoth(obs, func(o *api.Observation) { o.BodyUnstable = true })
+			continue
+		}
+		baseDigest, okBase := digestIgnoring(first.body, paths)
+		candDigest, okCand := digestIgnoring(cand.body, paths)
+		if !ok || !okBase || !okCand {
+			// Not JSON, so there is no way to compare what is left.
+			setBoth(obs, func(o *api.Observation) { o.BodyUnstable = true })
+			continue
+		}
+
 		for i := range obs {
-			obs[i].BodyUnstable = true
+			obs[i].BodyIgnoredFields = paths
+			if obs[i].Endpoint == api.EndpointBaseline {
+				obs[i].BodySHA256 = baseDigest
+			} else {
+				obs[i].BodySHA256 = candDigest
+			}
 		}
 	}
 }
 
-func bodiesDiffer(obs []api.Observation) bool {
-	first, second := obs[0], obs[1]
-	if first.Err != "" || second.Err != "" {
-		return false
+func setBoth(obs []api.Observation, f func(*api.Observation)) {
+	for i := range obs {
+		f(&obs[i])
 	}
-	return first.BodySHA256 != second.BodySHA256
-}
-
-func bodyOf(obs []api.Observation, endpoint string) string {
-	for _, o := range obs {
-		if o.Endpoint == endpoint {
-			return o.BodySHA256
-		}
-	}
-	return ""
 }
 
 // checkMethods refuses anything that could change state unless the user asked
@@ -304,21 +337,53 @@ func (e *endpoint) dialAddr(addr string) string {
 // retried once: a single dropped connection should not read as a behaviour
 // difference (PLAN section 5.5).
 func (e *endpoint) probe(ctx context.Context, tc api.TestCase, opts Options) api.Observation {
-	obs, err := e.attempt(ctx, tc, opts)
+	return e.sample(ctx, tc, opts, false).obs
+}
+
+// sample probes and, when asked, hands back the body as well, so two
+// responses can be compared field by field. The body is never stored on the
+// observation and never reaches the report.
+func (e *endpoint) sample(ctx context.Context, tc api.TestCase, opts Options, keepBody bool) sample {
+	obs, body, err := e.attempt(ctx, tc, opts, keepBody)
 	if err != nil && ctx.Err() == nil {
-		obs, err = e.attempt(ctx, tc, opts)
+		obs, body, err = e.attempt(ctx, tc, opts, keepBody)
 	}
 	if err != nil {
 		obs.Err = err.Error()
 	}
-	return obs
+	return sample{obs: obs, body: body}
 }
 
-func (e *endpoint) attempt(ctx context.Context, tc api.TestCase, opts Options) (api.Observation, error) {
+func bodiesDiffer(obs []api.Observation) bool {
+	first, second := obs[0], obs[1]
+	if first.Err != "" || second.Err != "" {
+		return false
+	}
+	return first.BodySHA256 != second.BodySHA256
+}
+
+func bodyOf(obs []api.Observation, endpoint string) string {
+	for _, o := range obs {
+		if o.Endpoint == endpoint {
+			return o.BodySHA256
+		}
+	}
+	return ""
+}
+
+// sample is an observation together with the body it was computed from. The
+// body is held only while the two endpoints are being reconciled, and never
+// reaches the report.
+type sample struct {
+	obs  api.Observation
+	body []byte
+}
+
+func (e *endpoint) attempt(ctx context.Context, tc api.TestCase, opts Options, keepBody bool) (api.Observation, []byte, error) {
 	obs := api.Observation{Endpoint: e.name}
 
 	if err := e.wait(ctx); err != nil {
-		return obs, err
+		return obs, nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
@@ -326,14 +391,14 @@ func (e *endpoint) attempt(ctx context.Context, tc api.TestCase, opts Options) (
 
 	req, err := e.request(ctx, tc)
 	if err != nil {
-		return obs, err
+		return obs, nil, err
 	}
 
 	start := time.Now()
 	resp, err := e.client.Do(req)
 	obs.LatencyMS = time.Since(start).Milliseconds()
 	if err != nil {
-		return obs, redactURL(err)
+		return obs, nil, redactURL(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -341,19 +406,28 @@ func (e *endpoint) attempt(ctx context.Context, tc api.TestCase, opts Options) (
 	obs.Headers = resp.Header
 
 	sum := sha256.New()
-	sample := &strings.Builder{}
-	var sink io.Writer = sum
+	snippet := &strings.Builder{}
+	full := &strings.Builder{}
+
+	sinks := []io.Writer{sum}
 	if opts.IncludeBodies {
-		sink = io.MultiWriter(sum, &capWriter{b: sample, n: MaxBodySample})
+		sinks = append(sinks, &capWriter{b: snippet, n: MaxBodySample})
 	}
-	if _, err := io.Copy(sink, resp.Body); err != nil {
-		return obs, fmt.Errorf("reading body: %w", err)
+	if keepBody {
+		sinks = append(sinks, &capWriter{b: full, n: maxComparableBody})
 	}
+	if _, err := io.Copy(io.MultiWriter(sinks...), resp.Body); err != nil {
+		return obs, nil, fmt.Errorf("reading body: %w", err)
+	}
+
 	obs.BodySHA256 = hex.EncodeToString(sum.Sum(nil))
 	if opts.IncludeBodies {
-		obs.BodySample = []byte(sample.String())
+		obs.BodySample = []byte(snippet.String())
 	}
-	return obs, nil
+	if keepBody {
+		return obs, []byte(full.String()), nil
+	}
+	return obs, nil, nil
 }
 
 // wait blocks until this endpoint's rate limiter lets the request through.

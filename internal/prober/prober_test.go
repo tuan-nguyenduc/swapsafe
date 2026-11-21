@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -429,8 +430,8 @@ func TestUnstableBaselineBodyIsMarked(t *testing.T) {
 			t.Errorf("%s observation was not marked unstable", o.Endpoint)
 		}
 	}
-	if hits.Load() != 2 {
-		t.Errorf("baseline saw %d requests, want 2: the original probe and one re-check", hits.Load())
+	if hits.Load() != 3 {
+		t.Errorf("baseline saw %d requests, want 3: the original probe and two re-checks", hits.Load())
 	}
 }
 
@@ -483,5 +484,93 @@ func TestMatchingBodiesCostNoExtraRequests(t *testing.T) {
 	}
 	if got := hits.Load(); got != int32(len(cases)) {
 		t.Errorf("baseline saw %d requests for %d cases: the stability check is not free when bodies match", got, len(cases))
+	}
+}
+
+// jsonHandler answers with a stable field and a volatile one, the shape of
+// every application that reports its own uptime or goroutine count.
+func jsonHandler(page string, counter *atomic.Int32) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"page": %q, "num_goroutine": %d}`, page, counter.Add(1))
+	}
+}
+
+// The point of comparing field by field: a volatile field is dropped and
+// everything else is still compared.
+func TestVolatileFieldIsIgnoredAndTheRestIsCompared(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		basePage       string
+		candPage       string
+		wantSameDigest bool
+	}{
+		{name: "only the volatile field differs", basePage: "home", candPage: "home", wantSameDigest: true},
+		{name: "a real difference survives", basePage: "home", candPage: "login"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var baseCounter, candCounter atomic.Int32
+			// The two counters start apart, so the bodies differ for a reason
+			// that is nobody's fault — which is the whole case under test.
+			candCounter.Store(1000)
+			baseline := httptest.NewServer(jsonHandler(tt.basePage, &baseCounter))
+			defer baseline.Close()
+			candidate := httptest.NewServer(jsonHandler(tt.candPage, &candCounter))
+			defer candidate.Close()
+
+			p := newProber(t, fastOptions(baseline.URL, candidate.URL))
+			got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+
+			base, cand := got["a"][0], got["a"][1]
+			if base.BodyUnstable || cand.BodyUnstable {
+				t.Fatal("a JSON body was given up on instead of compared field by field")
+			}
+			if !slices.Contains(base.BodyIgnoredFields, "num_goroutine") {
+				t.Errorf("num_goroutine was not recognized as volatile: %v", base.BodyIgnoredFields)
+			}
+			if slices.Contains(base.BodyIgnoredFields, "page") {
+				t.Errorf("a stable field was dropped from the comparison: %v", base.BodyIgnoredFields)
+			}
+
+			same := base.BodySHA256 == cand.BodySHA256
+			if same != tt.wantSameDigest {
+				t.Errorf("digests equal = %v, want %v (%q against %q)", same, tt.wantSameDigest, tt.basePage, tt.candPage)
+			}
+		})
+	}
+}
+
+// The failure the lab run reported: the same cluster, five runs, two of them
+// claiming a body difference. Twenty runs here, all of which must agree.
+func TestRepeatedRunsAgreeOnAVolatileBody(t *testing.T) {
+	t.Parallel()
+
+	var baseCounter, candCounter atomic.Int32
+	candCounter.Store(1000)
+	baseline := httptest.NewServer(jsonHandler("home", &baseCounter))
+	defer baseline.Close()
+	candidate := httptest.NewServer(jsonHandler("home", &candCounter))
+	defer candidate.Close()
+
+	p := newProber(t, fastOptions(baseline.URL, candidate.URL))
+
+	for i := range 20 {
+		got, err := p.Run(t.Context(), []api.TestCase{testCase("a", "/")})
+		if err != nil {
+			t.Fatalf("run %d: %v", i, err)
+		}
+		base, cand := got["a"][0], got["a"][1]
+		if base.BodySHA256 != cand.BodySHA256 {
+			t.Fatalf("run %d reported a body difference between two identical pages", i)
+		}
 	}
 }
